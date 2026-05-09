@@ -11,9 +11,9 @@ from src.Logging import initialize_logger
 
     
     
-async def run_main_tasks(server_conf: uvicorn.Config,
-                         verbose: bool = True):
+async def run_main_tasks(verbose: bool = True):
     config = ConfigManager.get_config()
+    tasks = []
     
     
     async def monitor_app(interval: int = 5):
@@ -65,17 +65,10 @@ def CLI(config_paths: List[str] = typer.Option(["config.json"], "-c", "--config-
     if initialize_logs: initialize_logger(__file__)
     
     
-    rest_conf = config.rest_api
-    _port, _host = rest_conf.port, rest_conf.host
-    is_ssl = rest_conf.as_https
-    ssl_key_dir, ssl_cert_dir = (rest_conf.ssl_keyfile_dir, rest_conf.ssl_certfile_dir) if is_ssl else (None, None)
-    # uvicorn_config = uvicorn.Config(app, port=port or _port, host=_host, # toDo
-    #                  ssl_keyfile=ssl_key_dir, ssl_certfile=ssl_cert_dir)
-    
     while True:
         try:
             
-            asyncio.run(run_main_tasks(uvicorn_config, verbose=verbose),
+            asyncio.run(run_main_tasks(verbose=verbose),
                         loop_factory=uvloop.new_event_loop)
             
         except SystemExit as e:
