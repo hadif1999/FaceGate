@@ -1,0 +1,22 @@
+[project]
+name = "gym-vision"
+version = "0.1.0"
+description = "gym face recognition for Latika written by hadi fathi"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "face-recognition>=1.3.0",
+    "fastapi>=0.136.1",
+    "ipykernel>=7.2.0",
+    "loguru>=0.7.3",
+    "numpy>=2.4.4",
+    "onnxruntime>=1.25.1",
+    "opencv-python>=4.13.0.92",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.0",
+    "setuptools>=82.0.1",
+    "typer>=0.25.1",
+    "uvicorn>=0.46.0",
+    "uvloop>=0.22.1",
+]
