@@ -1,4 +1,4 @@
-from repository.recognition._recognition_base import RecognizerBase, get_selected_model_path
+from ._recognition_base import RecognizerBase, get_selected_model_path
 import cv2
 
 class Recognizer(RecognizerBase):
@@ -6,11 +6,8 @@ class Recognizer(RecognizerBase):
         from src.config import ConfigManager
         model_path = get_selected_model_path()
         config = ConfigManager.get_config()
-        match model_name:=config.vision_setting.recognition.model_name:
-            case "sface":
-                self.recognizer = cv2.FaceRecognizerSF.create(model_path, "")
-            case _:
-                raise ValueError(f"undefined recognition model {model_name}")
+        self.recognizer = cv2.FaceRecognizerSF.create(model_path, "")
+
             
     
     def alignCrop(self, src_img: cv2.typing.MatLike,

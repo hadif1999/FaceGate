@@ -4,10 +4,11 @@
     },
     
     "cameras":[
-        {"URI": "rtsp://admin:Latika1405@192.168.1.64:554","role": null}
+        {"URI": "rtsp://admin:Latika1405@192.168.1.64:554/Streaming/Channels/102","role": null}
     ],
 
     "vision_setting":{
+        "face_DB_path": "data/face_embeddings.sqlite3",
         "models_path": "models/",
         "detection":{
             "conf_thresh": 0.75,
@@ -15,6 +16,8 @@
             "top_k": 10,
             "model_name": "yunet"},
         "recognition":{
+            "conf_thresh": 0.75,
+            "similarity_func": "cosine",
             "model_name": "sface"
         }
     },

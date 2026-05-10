@@ -24,10 +24,13 @@ class DetectionSetting(BaseModel):
 
 
 class RecognitionSetting(BaseModel):
+    conf_thresh: float = 0.75
+    similarity_func: Literal["cosine", "l2"] = "cosine"
     model_name: Literal["sface"] = "sface"
 
 
 class VisionSetting(BaseModel):
+    face_DB_path: str
     models_path: str
     detection: DetectionSetting = Field(default_factory=DetectionSetting)
     recognition: RecognitionSetting = Field(default_factory=RecognitionSetting)

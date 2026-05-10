@@ -1,10 +1,11 @@
 from __future__ import annotations
-
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 import numpy as np
+from loguru import logger
 
 
 class FaceDatabase:
@@ -15,98 +16,126 @@ class FaceDatabase:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize_database()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
+        """Yield a connection and guarantee it is closed afterwards."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _initialize_database(self) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    embedding BLOB NOT NULL,
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    embedding   BLOB    NOT NULL,
                     encoding_dim INTEGER NOT NULL CHECK (encoding_dim = 128),
-                    created_at TEXT NOT NULL
+                    created_at  TEXT    NOT NULL
                 )
                 """
             )
-            self._migrate_known_faces(conn)
 
-    def _migrate_known_faces(self, conn: sqlite3.Connection) -> None:
-        """Move legacy known_faces rows into the new user->id, embedding format."""
-        legacy_table = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'known_faces'"
-        ).fetchone()
-        if legacy_table is None:
-            return
-
-        has_users = conn.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"]
-        if has_users:
-            return
-
-        legacy_rows = conn.execute(
-            "SELECT encoding, encoding_dim, created_at FROM known_faces ORDER BY id"
-        ).fetchall()
-        conn.executemany(
-            """
-            INSERT INTO users (embedding, encoding_dim, created_at)
-            VALUES (?, ?, ?)
-            """,
-            [
-                (row["encoding"], row["encoding_dim"], row["created_at"])
-                for row in legacy_rows
-            ],
-        )
+    # ------------------------------------------------------------------
+    # Encoding helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _normalize_encoding(encoding: np.ndarray) -> np.ndarray:
-        encoding_array = np.asarray(encoding, dtype=np.float64)
+        encoding_array = np.asarray(encoding, dtype=np.float64).reshape(-1)
         if encoding_array.shape != (128,):
             raise ValueError(
-                f"face_recognition encodings must be 128-dimensional; got {encoding_array.shape}"
+                f"face_recognition encodings must be 128-dimensional; "
+                f"got {encoding_array.shape}"
             )
         return encoding_array
+
+    @staticmethod
+    def _unit_normalize(vec: np.ndarray) -> np.ndarray:
+        """Return L2-unit-normalized copy of vec (safe against zero vector)."""
+        norm = np.linalg.norm(vec)
+        if norm == 0.0:
+            raise ValueError("Cannot normalize a zero vector.")
+        return vec / norm
 
     @classmethod
     def _serialize_encoding(cls, encoding: np.ndarray) -> bytes:
         return cls._normalize_encoding(encoding).tobytes()
 
     @staticmethod
-    def _deserialize_encoding(encoding_blob: bytes) -> np.ndarray:
-        encoding = np.frombuffer(encoding_blob, dtype=np.float64)
+    def _deserialize_encoding(blob: bytes) -> np.ndarray:
+        encoding = np.frombuffer(blob, dtype=np.float64)
         if encoding.shape != (128,):
-            raise ValueError(f"stored face encoding is invalid: {encoding.shape}")
+            raise ValueError(f"Stored face encoding has invalid shape: {encoding.shape}")
         return encoding
 
-    def add_user(self, embedding: np.ndarray) -> int:
-        """Add a new user embedding and return the assigned user id."""
-        embedding_blob = self._serialize_encoding(embedding)
-        created_at = datetime.now(timezone.utc).isoformat()
+    # ------------------------------------------------------------------
+    # Write operations
+    # ------------------------------------------------------------------
 
+    def add_user(self, embedding: np.ndarray) -> int:
+        """Insert a new user row and return the assigned id."""
+        blob = self._serialize_encoding(embedding)
+        created_at = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO users (embedding, encoding_dim, created_at)
-                VALUES (?, ?, ?)
-                """,
-                (embedding_blob, 128, created_at),
+                "INSERT INTO users (embedding, encoding_dim, created_at) VALUES (?, ?, ?)",
+                (blob, 128, created_at),
             )
             return int(cursor.lastrowid)
 
-    def add_face(self, name: str, encoding: np.ndarray) -> int:
-        """Backward-compatible alias; user identity is the assigned SQLite id."""
+    def add_face(self, encoding: np.ndarray) -> int:
+        """Alias for add_user. Returns the assigned user id."""
         return self.add_user(encoding)
 
+    def delete_face(self, face_id: int) -> bool:
+        """
+        Delete the user with the given id.
+
+        Returns:
+            True if a row was deleted, False if the id was not found.
+        """
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM users WHERE id = ?", (face_id,))
+            return cursor.rowcount > 0
+
+    def update_face(self, face_id: int, new_encoding: np.ndarray) -> bool:
+        """
+        Replace the embedding vector for an existing user.
+
+        Args:
+            face_id: The id of the user to update.
+            new_encoding: New 128-dimensional face encoding.
+
+        Returns:
+            True if the row was updated, False if the id was not found.
+        """
+        blob = self._serialize_encoding(new_encoding)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE users SET embedding = ? WHERE id = ?",
+                (blob, face_id),
+            )
+            return cursor.rowcount > 0
+
+    # ------------------------------------------------------------------
+    # Read operations
+    # ------------------------------------------------------------------
+
     def list_face_data(self) -> list[dict]:
-        """Return users as {'id': int, 'embedding': np.ndarray, ...} dictionaries."""
+        """Return all users as a list of dicts with deserialized embeddings."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT id, embedding, encoding_dim, created_at FROM users ORDER BY id"
             ).fetchall()
-
-        return [
+        data = [
             {
                 "id": row["id"],
                 "embedding": self._deserialize_encoding(row["embedding"]),
@@ -115,54 +144,55 @@ class FaceDatabase:
             }
             for row in rows
         ]
-
+        return data
 
     def recognize_face(
         self,
         face_encoding: np.ndarray,
         tolerance: float = 0.6,
-        metric: Literal["l2", "cosine"] = "cosine"
+        metric: Literal["l2", "cosine"] = "cosine",
     ) -> tuple[int | None, float | None]:
         """
-        Compare a 128D face encoding with registered SQLite encodings.
+        Find the closest registered face to the query encoding.
 
         Args:
-            face_encoding: The query face embedding (128D).
-            tolerance: Similarity threshold.
-                - For "l2": maximum L2 distance (default 0.6, lower = more similar)
-                - For "cosine": minimum cosine similarity (default 0.6, higher = more similar)
-            metric: Distance metric - "l2" (Euclidean) or "cosine" (cosine similarity).
+            face_encoding: Query embedding (128D).
+            tolerance:
+                - "l2":     maximum L2 distance to accept (lower = stricter).
+                - "cosine": minimum cosine similarity to accept (higher = stricter).
+            metric: "l2" or "cosine".
 
         Returns:
-            (user_id, confidence) for the closest match, otherwise (None, None).
+            (user_id, confidence) on match, (None, None) if no match.
         """
-        candidate_encoding = self._normalize_encoding(face_encoding)
-        face_data: list[dict] = self.list_face_data()
+        candidate = self._normalize_encoding(face_encoding)
+        face_data = self.list_face_data()
         if not face_data:
             return None, None
 
-        known_embeddings = np.asarray([user["embedding"] for user in face_data])
+        known = np.asarray([u["embedding"] for u in face_data])  # (N, 128)
 
         if metric == "l2":
-            # L2 (Euclidean) distance
-            distances = np.linalg.norm(known_embeddings - candidate_encoding, axis=1)
-            min_idx = int(np.argmin(distances))
-            min_distance = float(distances[min_idx])
+            distances = np.linalg.norm(known - candidate, axis=1)
+            best_idx = int(np.argmin(distances))
+            best_dist = float(distances[best_idx])
 
-            if min_distance <= tolerance:
-                confidence = 1.0 - min_distance
-                return int(face_data[min_idx]["id"]), confidence
+            if best_dist <= tolerance:
+                # Map distance to a [0, 1] confidence (clamped)
+                confidence = float(np.clip(1.0 - best_dist, 0.0, 1.0))
+                return int(face_data[best_idx]["id"]), confidence
 
         elif metric == "cosine":
-            # Cosine similarity (for normalized vectors, this equals dot product)
-            # Range: [-1, 1], where 1 = identical direction
-            similarities = np.dot(known_embeddings, candidate_encoding)
-            max_idx = int(np.argmax(similarities))
-            max_similarity = float(similarities[max_idx])
+            # Normalize both sides so dot product == cosine similarity
+            known_unit = known / np.linalg.norm(known, axis=1, keepdims=True)
+            candidate_unit = self._unit_normalize(candidate)
 
-            if max_similarity >= tolerance:
-                # Clip to [0, 1] for confidence (handles edge cases with non-normalized data)
-                confidence = float(np.clip(max_similarity, 0.0, 1.0))
-                return int(face_data[max_idx]["id"]), confidence
+            similarities = np.dot(known_unit, candidate_unit)  # (N,)
+            best_idx = int(np.argmax(similarities))
+            best_sim = float(similarities[best_idx])
+
+            if best_sim >= tolerance:
+                confidence = float(np.clip(best_sim, 0.0, 1.0))
+                return int(face_data[best_idx]["id"]), confidence
 
         return None, None

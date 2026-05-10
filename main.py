@@ -1,95 +1,66 @@
-from __future__ import annotations
-
-import time
-
-import cv2
-
-from repository.database.controller import FaceDatabase
-from repository.detection.yunet import FaceDetector
+import asyncio
 from loguru import logger
-from src.errors import CameraError, InvalidEnviromentError
+from src.tasks.recognizer import recognizer_loop
+from src.config import ConfigManager
+import typer
+from typing import List
+from src.Logging import initialize_logger
+import uvloop
+import gc, time
 
 
-ANALYSIS_INTERVAL_SECONDS = 2.0
-CAMERA_INDEX = 0
-RECOGNITION_TOLERANCE = 0.6
+async def tasks_runner(camera_idx: int = 0, interval: float = 0.001, open_camera_window = True):
+    tasks = [
+        asyncio.create_task(recognizer_loop(camera_idx=camera_idx, interval=interval,
+                                            open_camera_window=open_camera_window)),
+        # add more tasks here
+    ]
+
+    try:
+        await asyncio.gather(*tasks)
+    except (asyncio.CancelledError, Exception) as e:
+        if isinstance(e, asyncio.CancelledError):
+            logger.info("tasks_runner cancelled")
+        else:
+            logger.exception(f"unhandled exception in tasks_runner: {e}")
+    finally:
+        current = asyncio.current_task()
+        pending = [t for t in tasks if t is not current and not t.done()]
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        logger.info("tasks_runner cleanup complete")
+        
 
 
-def draw_result(frame, location, label, color):
-    top, right, bottom, left = location
-    cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
-    cv2.putText(
-        frame,
-        label,
-        (left, max(20, top - 10)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        color,
-        2,
-    )
-
-
-def main():
-    detector = FaceDetector()
-    db = FaceDatabase()
-    from src.config import ConfigManager
+def CLI(config_paths: List[str] = typer.Option(["config.json"], "-c", "--config-path", help="path of config files"),
+        initialize_logs: bool = True,
+        interval: float = 0.001,
+        open_camera_window: bool = True):
+    
+    config = ConfigManager.read_multiple_config_files(*config_paths)
     config = ConfigManager.get_config()
+            
+    if config is None:
+        logger.error("config is not initialized from server, using values from config file")
+        return
 
-    cap = cv2.VideoCapture(config.cameras[CAMERA_INDEX].uri)
-
-    if not cap.isOpened():
-        logger.error("Error: Cannot open camera")
-        raise CameraError("error while opening camera")
-
-    logger.success("Face recognition system started")
-    logger.info("Analyzing one frame every 2 seconds")
-    logger.info("Press 'q' to quit")
-
-    last_analysis_time = 0.0
-    last_result = None
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            logger.error("Error: Cannot read frame")
-            break
-
-        current_time = time.monotonic()
-
-        if current_time - last_analysis_time >= ANALYSIS_INTERVAL_SECONDS:
-            last_analysis_time = current_time
-            last_result = None
-
-            encoding, location = detector.get_face_encoding(frame)
-
-            # If nobody is in front of the camera, skip recognition and wait.
-            if encoding is not None and location is not None:
-                name, confidence = db.recognize_face(
-                    encoding, tolerance=RECOGNITION_TOLERANCE
-                )
-
-                if name is not None and confidence is not None:
-                    label = f"{name} ({confidence:.2f})"
-                    color = (0, 255, 0)
-                    print(f"Recognized: {label}")
-                else:
-                    label = "Unknown"
-                    color = (0, 0, 255)
-                    print("Unknown person")
-
-                last_result = (location, label, color)
-
-        if last_result is not None:
-            draw_result(frame, *last_result)
-
-        cv2.imshow("Face Recognition", frame)
-
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-
+    if initialize_logs: initialize_logger(__file__)
+    
+    
+    try:
+        
+        asyncio.run(tasks_runner(interval=interval, open_camera_window=open_camera_window),
+                    loop_factory=uvloop.new_event_loop)
+        
+    except SystemExit as e:
+        logger.critical(f"exiting app with error_code={e.code} ...")
+        raise e
+    except Exception as e:
+        logger.exception(f"exception occurred in main loop: {e.__class__}: {str(e)}")
+    finally:
+        gc.collect()
 
 if __name__ == "__main__":
-    main()
+    typer.run(CLI)
