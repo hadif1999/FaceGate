@@ -15,6 +15,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.0",
+    "pyyaml>=6.0.3",
     "setuptools>=82.0.1",
     "typer>=0.25.1",
     "uvicorn>=0.46.0",

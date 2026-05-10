@@ -179,6 +179,11 @@ class ConfigManager:
                     config_raw: dict = json.loads(file.read())
                 merged_config_raw.update(config_raw)
                 __class__.__CONFIG_PATH = paths[i] # set json conf as public file
+            elif ".yaml" in path:
+                import yaml
+                with open(path, "r") as file:
+                    config_raw: dict = yaml.safe_load(file)
+                merged_config_raw.update(config_raw)
             elif ".py" in path:
                 config_raw: dict = importlib.import_module(path.removesuffix(".py")).config
                 merged_config_raw.update(config_raw)

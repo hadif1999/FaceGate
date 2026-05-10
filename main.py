@@ -34,7 +34,7 @@ async def tasks_runner(camera_idx: int = 0, interval: float = 0.001, open_camera
         
 
 
-def CLI(config_paths: List[str] = typer.Option(["config.json"], "-c", "--config-path", help="path of config files"),
+def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-path", help="path of config files"),
         initialize_logs: bool = True,
         interval: float = 0.001,
         open_camera_window: bool = True):
