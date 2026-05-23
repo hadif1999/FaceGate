@@ -9,9 +9,11 @@ import uvloop
 import gc, time
 
 
-async def tasks_runner(camera_idx: int = 0, interval: float = 0.001, open_camera_window = True):
+async def tasks_runner(interval: float = 0.001, open_camera_window = True):
+    config = ConfigManager.get_config()
+    uri = config.cameras[0].uri
     tasks = [
-        asyncio.create_task(recognizer_loop(camera_idx=camera_idx, interval=interval,
+        asyncio.create_task(recognizer_loop(camera_uri=uri, interval=interval,
                                             open_camera_window=open_camera_window)),
         # add more tasks here
     ]

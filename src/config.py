@@ -38,7 +38,7 @@ class VisionSetting(BaseModel):
 
 class Camera(BaseModel):
     uri: str = Field(alias="URI")
-    role: str | None = None
+    roles: Optional[list[Literal["registration", "recognition"]]] = Field(max_length=2, default=None)
 
     model_config = ConfigDict(populate_by_name=True)
 
