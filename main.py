@@ -3,7 +3,7 @@ from loguru import logger
 from src.tasks.recognizer import recognizer_loop
 from src.config import ConfigManager
 import typer
-from typing import List
+from typing import List, Optional
 from src.Logging import initialize_logger
 import uvloop
 import gc, time
@@ -38,7 +38,7 @@ async def tasks_runner(interval: float = 0.001, open_camera_window = True):
 
 def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-path", help="path of config files"),
         initialize_logs: bool = True,
-        interval: float = 0.001,
+        interval: Optional[float] = typer.Option(None, "-i", "--interval", help="interval of vision"),
         open_camera_window: bool = True):
     
     config = ConfigManager.read_multiple_config_files(*config_paths)
@@ -53,8 +53,9 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
     
     try:
         
-        asyncio.run(tasks_runner(interval=interval, open_camera_window=open_camera_window),
-                    loop_factory=uvloop.new_event_loop)
+        asyncio.run(tasks_runner(interval=interval or config.vision_setting.interval_sec,
+                                open_camera_window=open_camera_window),
+                                loop_factory=uvloop.new_event_loop)
         
     except SystemExit as e:
         logger.critical(f"exiting app with error_code={e.code} ...")

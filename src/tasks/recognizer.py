@@ -7,6 +7,9 @@ import asyncio
 from src.errors import InvalidEnviromentError
 import numpy as np
 from typing import Literal
+import time
+from src.utils.utils import log_exec_time
+from src.utils.utils import read_frame, shift_point_percent, crop_percent, crop_by_corners
 
 
 def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
@@ -58,16 +61,39 @@ def draw_rect_on_frame(frame: cv2.typing.MatLike, dims: np.ndarray, bgr = (0, 25
     except Exception as e:
         logger.warning(f"failed to draw rectangle on frame: {e}")
         
-        
-def _read_frame(cap: cv2.VideoCapture, skip_n_frames: int = 5):
-    for _ in range(skip_n_frames):
-        if not cap.grab():
-            break
-    ret, frame = cap.retrieve()
+
+
+def _init_capture(uri: str):
+        # ── camera open ───────────────────────────────────────────────────────────
+    logger.info(f"opening camera uri={uri!r}")
+    cap = cv2.VideoCapture(uri)
+    time.sleep(1)
+
+    if not cap.isOpened():
+        cap.release()
+        logger.critical(f"could not open camera (uri={uri!r})")
+        raise InvalidEnviromentError(f"could not open camera {uri}")
+
+    
+    # Force MJPEG encoding (allows higher fps/resolution on many webcams)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    
+    # Verify actual resolution
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    logger.info(f"Actual resolution: {width} x {height}")
+
+    # ── initial frame for input size ──────────────────────────────────────────
+    ret, frame = cap.read()
     if not ret or frame is None:
-        logger.error("failed to grab frame, stopping loop.")
+        logger.error("failed to grab initial frame from camera, aborting.")
+        cap.release()
+        cv2.destroyAllWindows()
         return None
-    return frame
+    return cap
     
 
 
@@ -88,25 +114,11 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
         logger.critical(f"failed to load config, cannot start recognizer loop: {e}")
         raise
 
-    # ── camera open ───────────────────────────────────────────────────────────
-    logger.info(f"opening camera uri={camera_uri!r}")
-    cap = cv2.VideoCapture(camera_uri)
-    await asyncio.sleep(1)
-
-    if not cap.isOpened():
-        cap.release()
-        logger.critical(f"could not open camera (uri={camera_uri!r})")
-        raise InvalidEnviromentError(f"could not open camera {camera_uri}")
-
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-    # ── initial frame for input size ──────────────────────────────────────────
-    ret, frame = cap.read()
-    if not ret or frame is None:
-        logger.error("failed to grab initial frame from camera, aborting.")
-        cap.release()
-        cv2.destroyAllWindows()
-        return
+    CROP_DIM = ( config.vision_setting.crop.tl_reduce_pct, 
+                config.vision_setting.crop.br_reduce_pct )
+    
+    cap = _init_capture(camera_uri)
+    if cap is None: return
 
     # ── model + db init ───────────────────────────────────────────────────────
     try:
@@ -116,8 +128,11 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
         logger.critical(f"failed to initialize FaceDatabase: {e}")
         cap.release()
         raise
-
+    
+    ret, frame = cap.read()
+    frame = crop_percent(frame, CROP_DIM[0],  CROP_DIM[1])
     input_size = tuple(frame.shape[:2])
+    logger.info(f"current resolution: {input_size}")
     try:
         detector: DetectorBase = _get_detector_cls(input_size)
         recognizer: RecognizerBase = _get_recognizer_cls()
@@ -137,17 +152,18 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
     
     # ── main loop ─────────────────────────────────────────────────────────────
     while True:
-        frame = _read_frame(cap, skip_n_frames=5)
+        frame = read_frame(cap, skip_n_frames=config.vision_setting.skip_n_frames)
         if frame is None: continue
         
+        frame = crop_percent(frame, CROP_DIM[0],  CROP_DIM[1])
         h, w = frame.shape[:2]
-
+        
         try:
             detector.setInputSize((w, h))
             _, faces = detector.detect(frame)
         except Exception as e:
             logger.error(f"detector failed on frame: {e}")
-            await asyncio.sleep(interval)
+            time.sleep(interval)
             continue
 
         # ----- handle no‑face case -----
@@ -157,8 +173,9 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
             # still draw window if needed (just show frame without overlays)
             if open_camera_window:
                 cv2.imshow(CAMERA_WIN_NAME, frame)
+                cv2.waitKey(1)
             # skip all face processing for this frame
-            await asyncio.sleep(interval)
+            time.sleep(interval)
             continue
 
         # ----- at least one face found -----
@@ -180,7 +197,7 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
             face_features = recognizer.feature(face_align)
         except Exception as e:
             logger.error(f"feature extraction failed: {e}")
-            await asyncio.sleep(interval)
+            time.sleep(interval)
             continue
 
         # ----- same‑face check -----
@@ -188,7 +205,6 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
             try:
                 prev_match = recognizer.match(face_features, prev_face_features)
                 same_face = prev_match > 0.95
-                logger.debug(f"same-face match score: {prev_match:.4f} → same={same_face}")
             except Exception as e:
                 logger.warning(f"same-face comparison failed, treating as new face: {e}")
                 same_face = False
@@ -203,7 +219,7 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
                 )
             except Exception as e:
                 logger.error(f"db.recognize_face failed: {e}")
-                await asyncio.sleep(interval)
+                time.sleep(interval)
                 continue
 
             if face_id is None:
@@ -287,7 +303,7 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
         if face_features is not None:
             prev_face_features = face_features
 
-        await asyncio.sleep(interval)
+        time.sleep(interval)
 
     # ── cleanup ───────────────────────────────────────────────────────────────
     logger.info("releasing camera and destroying windows")

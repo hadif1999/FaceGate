@@ -27,11 +27,19 @@ class RecognitionSetting(BaseModel):
     conf_thresh: float = 0.75
     similarity_func: Literal["cosine", "l2"] = "cosine"
     model_name: Literal["sface"] = "sface"
+    
+
+class CropSetting(BaseModel):
+    tl_reduce_pct: list[int] = Field(max_length=2, min_length=2)
+    br_reduce_pct: list[int] = Field(max_length=2, min_length=2)
 
 
 class VisionSetting(BaseModel):
     face_DB_path: str
     models_path: str
+    skip_n_frames: int = 5
+    interval_sec: float = 0.01
+    crop: CropSetting
     detection: DetectionSetting = Field(default_factory=DetectionSetting)
     recognition: RecognitionSetting = Field(default_factory=RecognitionSetting)
 
@@ -51,22 +59,7 @@ class RestAPI(BaseModel):
     as_https: bool = False
     ssl_keyfile_dir: str|None = None
     ssl_certfile_dir: str|None = None 
-    
 
-class User(BaseModel):
-    username: str
-    password: str
-    permission: Literal[11, 10, 0] = 0
-    active: bool 
-    is_admin: bool = False
-
-    
-class AuthSetting(BaseModel):
-    enabled: bool = True
-    jwt_secret: str
-    jwt_token_expire_minutes: int = 1000
-    jwt_algorithm: str = "HS256"
-    users: list[User]
 
 
 class General(BaseModel):
@@ -79,19 +72,10 @@ class HealthCheck(BaseModel):
     push_to_server: bool = True
     route: str
     interval_sec: int = 5
-    
 
-class ServerAuth(BaseModel):
-    username: str
-    password: str
-    route: str = "/jwt-auth/v1/token"
-    type: Literal["jwt"] = "jwt"
-    
-  
 
 class Server(BaseModel):
     base_url: str = "https://panel.robtk.com/wp-json"
-    auth: ServerAuth
     
 
 
@@ -101,7 +85,6 @@ class AppConfig(BaseSettings):
     cameras: list[Camera] = Field(default_factory=list)
     vision_setting: VisionSetting = Field(default_factory=VisionSetting)
     rest_api: RestAPI
-    auth: AuthSetting
     server: Server|None = None
     health_check: HealthCheck
     model_config = SettingsConfigDict(
