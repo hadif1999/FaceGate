@@ -1,15 +1,20 @@
 from src.repository.database.controller import FaceDatabase
 from src.repository.recognition._recognition_base import RecognizerBase
 from src.repository.detection._detection_base import DetectorBase
+from src.config import ConfigManager
+import multiprocessing as mp
 import cv2
 from loguru import logger
-import asyncio
 from src.errors import InvalidEnviromentError
 import numpy as np
 from typing import Literal
 import time
 from src.utils.utils import log_exec_time
 from src.utils.utils import read_frame, shift_point_percent, crop_percent, crop_by_corners
+from .queue import QueueMsgSchema
+import datetime as dt
+import queue
+import random
 
 
 def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
@@ -101,9 +106,12 @@ CAMERA_WIN_NAME = "recognition_window"
 prev_face_features: None | np.ndarray = None
 
 
-async def recognizer_loop(camera_uri: str, interval: float = 0.001,
-                          roles: list[Literal["recognition", "registration"]] = ["recognition", "registration"],
-                          open_camera_window: bool = False):
+def recognizer_loop(camera_uri: str, 
+                    mp_queue: mp.Queue,
+                    interval: float = 0.001,
+                    roles: list[Literal["recognition", "registration"]] = ["recognition", "registration"],
+                    open_camera_window: bool = False,
+                    cam_id: int = 0):
     global CAMERA_WIN_NAME, prev_face_features
 
     # ── config ────────────────────────────────────────────────────────────────
@@ -199,7 +207,6 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
             logger.error(f"feature extraction failed: {e}")
             time.sleep(interval)
             continue
-
         # ----- same‑face check -----
         if prev_face_features is not None:
             try:
@@ -226,6 +233,19 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
                 logger.warning("face not recognized — unknown person")
             else:
                 logger.info(f"*** new face recognized: id={face_id}, confidence={conf:.4f}")
+                data = QueueMsgSchema(msg_type="RECOGNITION", cam_id=cam_id,
+                                      face_id=face_id, create_date=dt.datetime.now())
+                mp_queue.put(data.model_dump(), timeout=5)
+            
+        if "registration" in roles:
+            try:
+                data_input: dict = mp_queue.get_nowait()
+            except queue.Empty:
+                data_input = None
+            
+            if data_input:
+                data = QueueMsgSchema(**data_input)
+                db.update_face(data.face_id, face_features)
 
         # ── overlay label on frame (only if window is open) ──────────────────
         if open_camera_window:
@@ -260,7 +280,7 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
                         face_id_check, _ = db.recognize_face(face_features, 0.95, "cosine")
                         if face_id_check is None:
                             logger.info("registering new face...")
-                            new_face_id = db.add_face(face_features)
+                            new_face_id = db.add_face(face_features, random.randint(10, 1000))
                             logger.success(f"registered new face with id={new_face_id}")
                         else:
                             logger.warning(f"face already registered with id={face_id_check}, skipping")
@@ -309,3 +329,17 @@ async def recognizer_loop(camera_uri: str, interval: float = 0.001,
     logger.info("releasing camera and destroying windows")
     cap.release()
     cv2.destroyAllWindows()
+    
+    
+
+def init_recognizers(queue: mp.Queue, open_camera_window: bool = False)-> list[mp.Process]:
+    config = ConfigManager.get_config()
+    interval = config.vision_setting.interval_sec
+    processes = [mp.Process(target=recognizer_loop, 
+                            args=(camera.uri, queue, 
+                                  interval, camera.roles,
+                                  open_camera_window, i),
+                            daemon=True,
+                            name=f"recognizer_{i}") 
+                 for i, camera in enumerate(config.cameras)]
+    return processes

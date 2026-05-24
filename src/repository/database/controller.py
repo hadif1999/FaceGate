@@ -38,6 +38,7 @@ class FaceDatabase:
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     embedding   BLOB    NOT NULL,
                     encoding_dim INTEGER NOT NULL CHECK (encoding_dim = 128),
+                    member_id   INTEGER NOT NULL UNIQUE,
                     created_at  TEXT    NOT NULL
                 )
                 """
@@ -80,20 +81,22 @@ class FaceDatabase:
     # Write operations
     # ------------------------------------------------------------------
 
-    def add_user(self, embedding: np.ndarray) -> int:
+    def add_user(self, embedding: np.ndarray, member_id: int) -> int:
         """Insert a new user row and return the assigned id."""
         blob = self._serialize_encoding(embedding)
         created_at = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
-                "INSERT INTO users (embedding, encoding_dim, created_at) VALUES (?, ?, ?)",
-                (blob, 128, created_at),
+                "INSERT INTO users (embedding, encoding_dim, member_id, created_at) VALUES (?, ?, ?, ?)",
+                (blob, 128, member_id, created_at),
             )
             return int(cursor.lastrowid)
 
-    def add_face(self, encoding: np.ndarray) -> int:
+
+    def add_face(self, encoding: np.ndarray, member_id: int) -> int:
         """Alias for add_user. Returns the assigned user id."""
-        return self.add_user(encoding)
+        return self.add_user(encoding, member_id)
+
 
     def delete_face(self, face_id: int) -> bool:
         """
@@ -105,6 +108,7 @@ class FaceDatabase:
         with self._connect() as conn:
             cursor = conn.execute("DELETE FROM users WHERE id = ?", (face_id,))
             return cursor.rowcount > 0
+
 
     def update_face(self, face_id: int, new_encoding: np.ndarray) -> bool:
         """
@@ -133,18 +137,20 @@ class FaceDatabase:
         """Return all users as a list of dicts with deserialized embeddings."""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, embedding, encoding_dim, created_at FROM users ORDER BY id"
+                "SELECT id, embedding, encoding_dim, member_id, created_at FROM users ORDER BY id"
             ).fetchall()
         data = [
             {
                 "id": row["id"],
                 "embedding": self._deserialize_encoding(row["embedding"]),
                 "encoding_dim": row["encoding_dim"],
+                "member_id": row["member_id"],
                 "created_at": row["created_at"],
             }
             for row in rows
         ]
         return data
+
 
     def recognize_face(
         self,

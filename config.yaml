@@ -6,13 +6,16 @@ cameras:
     roles: 
       - registration
       - recognition  
+  - URI: /dev/video0
+    roles:
+      - recognition
 # settings related to machine vision
 vision_setting:
   face_DB_path: data/face_embeddings.sqlite3
   models_path: models/
   # these params has effect of performance
-  skip_n_frames: 10
-  interval_sec: 0.1 
+  skip_n_frames: 5
+  interval_sec: 0.01 
   #####
   # crop setting 
   crop:
