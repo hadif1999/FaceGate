@@ -10,10 +10,11 @@ import gc, time
 from src.tasks.recognizer import init_recognizers
 import multiprocessing as mp
 
+mp.set_start_method("fork")
+
 
 async def tasks_runner(interval: float = 0.001, open_camera_window = False):
     config = ConfigManager.get_config()
-    uri = config.cameras[0].uri
     config.vision_setting.interval_sec = interval
     queue = mp.Queue(maxsize=30)
     recognizer_tasks = init_recognizers(queue, open_camera_window)

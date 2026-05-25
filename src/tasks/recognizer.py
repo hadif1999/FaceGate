@@ -15,17 +15,14 @@ from .queue import QueueMsgSchema
 import datetime as dt
 import queue
 import random
+from src.config import AppConfig
 
 
 def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
     from src.config import ConfigManager
-    try:
-        config = ConfigManager.get_config()
-    except Exception as e:
-        logger.critical(f"failed to load config: {e}")
-        raise
-
-    match model_name := config.vision_setting.detection.model_name:
+    config = ConfigManager.get_config()
+    model_name = config.vision_setting.detection.model_name
+    match model_name:
         case "yunet":
             try:
                 from src.repository.detection.yunet import Detector
@@ -40,13 +37,9 @@ def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
 
 def _get_recognizer_cls() -> RecognizerBase:
     from src.config import ConfigManager
-    try:
-        config = ConfigManager.get_config()
-    except Exception as e:
-        logger.critical(f"failed to load config: {e}")
-        raise
-
-    match model_name := config.vision_setting.recognition.model_name:
+    config = ConfigManager.get_config()
+    model_name = config.vision_setting.recognition.model_name
+    match model_name:
         case "sface":
             try:
                 from src.repository.recognition.sface import Recognizer
@@ -115,13 +108,8 @@ def recognizer_loop(camera_uri: str,
     global CAMERA_WIN_NAME, prev_face_features
 
     # ── config ────────────────────────────────────────────────────────────────
-    from src.config import ConfigManager
-    try:
-        config = ConfigManager.get_config()
-    except Exception as e:
-        logger.critical(f"failed to load config, cannot start recognizer loop: {e}")
-        raise
-
+    config = ConfigManager.get_config()
+    
     CROP_DIM = ( config.vision_setting.crop.tl_reduce_pct, 
                 config.vision_setting.crop.br_reduce_pct )
     
@@ -180,8 +168,11 @@ def recognizer_loop(camera_uri: str,
             same_face = False           # reset same‑face flag when no face present
             # still draw window if needed (just show frame without overlays)
             if open_camera_window:
-                cv2.imshow(CAMERA_WIN_NAME, frame)
-                cv2.waitKey(1)
+                cv2.imshow(CAMERA_WIN_NAME+f"_{cam_id}", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key in (27, ord('q')):
+                    logger.info("quit key pressed, stopping loop")
+                    break
             # skip all face processing for this frame
             time.sleep(interval)
             continue
@@ -245,7 +236,8 @@ def recognizer_loop(camera_uri: str,
             
             if data_input:
                 data = QueueMsgSchema(**data_input)
-                db.update_face(data.face_id, face_features)
+                if data.msg_type == "REGISTRATION":
+                    db.update_face(data.face_id, face_features)
 
         # ── overlay label on frame (only if window is open) ──────────────────
         if open_camera_window:
@@ -262,17 +254,14 @@ def recognizer_loop(camera_uri: str,
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.7, (255, 255, 255), 1,
                 )
-                cv2.imshow(CAMERA_WIN_NAME, frame)
+                cv2.imshow(CAMERA_WIN_NAME+f"_{cam_id}", frame)
             except Exception as e:
                 logger.warning(f"failed to render overlay: {e}")
 
         # ── key bindings (only valid when a face is present) ─────────────────
         if open_camera_window:
             key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord('q')):
-                logger.info("quit key pressed, stopping loop")
-                break
-            elif key == ord('r'):       # register
+            if key == ord('r'):       # register
                 # Ensure we have valid face features from current frame
                 if face_features is not None:
                     try:

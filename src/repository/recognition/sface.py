@@ -3,9 +3,7 @@ import cv2
 
 class Recognizer(RecognizerBase):
     def __init__(self):
-        from src.config import ConfigManager
         model_path = get_selected_model_path()
-        config = ConfigManager.get_config()
         self.recognizer = cv2.FaceRecognizerSF.create(model_path, "")
 
             
