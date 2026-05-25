@@ -1,14 +1,12 @@
 general:
   log_level: DEBUG
+  open_camera_windows: false
 # define each camera properties and their role
 cameras:
   - URI: /dev/video2
-    roles: 
-      - registration
-      - recognition  
+    can_register: true
   - URI: /dev/video0
-    roles:
-      - recognition
+    can_register: false
 # settings related to machine vision
 vision_setting:
   face_DB_path: data/face_embeddings.sqlite3
@@ -34,17 +32,15 @@ vision_setting:
     conf_thresh: 0.75
     similarity_func: cosine
     model_name: sface
+    after_recognition_delay: 3
 # health-check settings 
 health_check:
   enabled: true
   push_to_server: false
   route: ""
   interval_sec: 5
-# settings related to api
-rest_api:
-  port: 10821
-  host: 0.0.0.0
-  global_prefix: /api/v1
-  global_timeout: 20
+# settings related to websocket
+websocket_server:
+  url: "ws://127.0.0.1:8888"
 
 

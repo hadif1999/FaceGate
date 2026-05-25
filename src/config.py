@@ -27,6 +27,7 @@ class RecognitionSetting(BaseModel):
     conf_thresh: float = 0.75
     similarity_func: Literal["cosine", "l2"] = "cosine"
     model_name: Literal["sface"] = "sface"
+    after_recognition_delay: int = 3
     
 
 class CropSetting(BaseModel):
@@ -46,7 +47,7 @@ class VisionSetting(BaseModel):
 
 class Camera(BaseModel):
     uri: str = Field(alias="URI")
-    roles: Optional[list[Literal["registration", "recognition"]]] = Field(max_length=2, default=None)
+    can_register: bool = False
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -64,6 +65,7 @@ class RestAPI(BaseModel):
 
 class General(BaseModel):
     log_level: str = "DEBUG"
+    open_camera_windows: bool = False
     
 
     
@@ -74,8 +76,10 @@ class HealthCheck(BaseModel):
     interval_sec: int = 5
 
 
-class Server(BaseModel):
-    base_url: str = "https://panel.robtk.com/wp-json"
+class WebsocketServer(BaseModel):
+    url: str
+    
+    
     
 
 
@@ -85,7 +89,7 @@ class AppConfig(BaseSettings):
     cameras: list[Camera] = Field(default_factory=list)
     vision_setting: VisionSetting = Field(default_factory=VisionSetting)
     rest_api: RestAPI
-    server: Server|None = None
+    websocket_server: WebsocketServer
     health_check: HealthCheck
     model_config = SettingsConfigDict(
         case_sensitive=False,           # Environment variables are case-insensitive

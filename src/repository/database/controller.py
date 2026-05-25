@@ -36,7 +36,7 @@ class FaceDatabase:
                 """
                 CREATE TABLE IF NOT EXISTS users (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    embedding   BLOB    NOT NULL,
+                    embedding   BLOB,
                     encoding_dim INTEGER NOT NULL CHECK (encoding_dim = 128),
                     member_id   INTEGER NOT NULL UNIQUE,
                     created_at  TEXT    NOT NULL
@@ -93,7 +93,7 @@ class FaceDatabase:
             return int(cursor.lastrowid)
 
 
-    def add_face(self, encoding: np.ndarray, member_id: int) -> int:
+    def add_face(self, encoding: np.ndarray|None, member_id: int) -> int:
         """Alias for add_user. Returns the assigned user id."""
         return self.add_user(encoding, member_id)
 
@@ -128,6 +128,49 @@ class FaceDatabase:
                 (blob, face_id),
             )
             return cursor.rowcount > 0
+        
+        
+    def get_face_by_member_id(self, member_id: int) -> dict | None:
+        """
+        Retrieve the record for a given member_id with all fields,
+        including the deserialized embedding.
+
+        Returns:
+            A dict with keys: id, embedding (np.ndarray), encoding_dim, member_id, created_at.
+            None if no such member exists.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, embedding, encoding_dim, member_id, created_at FROM users WHERE member_id = ?",
+                (member_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "embedding": self._deserialize_encoding(row["embedding"]),
+            "encoding_dim": row["encoding_dim"],
+            "member_id": row["member_id"],
+            "created_at": row["created_at"],
+        }
+
+
+    def del_by_member_id(self, member_id: int) -> bool:
+        """
+        Delete the record associated with the given member_id.
+
+        Returns:
+            True if a row was deleted, False if the member_id was not found.
+        """
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM users WHERE member_id = ?", (member_id,))
+            return cursor.rowcount > 0
+
+
+    def del_all(self) -> None:
+        """Delete all records from the users table."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM users")
 
     # ------------------------------------------------------------------
     # Read operations

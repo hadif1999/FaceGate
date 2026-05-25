@@ -7,7 +7,7 @@ import cv2
 from loguru import logger
 from src.errors import InvalidEnviromentError
 import numpy as np
-from typing import Literal
+from typing import Literal, Tuple
 import time
 from src.utils.utils import log_exec_time
 from src.utils.utils import read_frame, shift_point_percent, crop_percent, crop_by_corners
@@ -16,6 +16,7 @@ import datetime as dt
 import queue
 import random
 from src.config import AppConfig
+from uuid import uuid4
 
 
 def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
@@ -101,8 +102,8 @@ prev_face_features: None | np.ndarray = None
 
 def recognizer_loop(camera_uri: str, 
                     mp_queue: mp.Queue,
+                    lock,
                     interval: float = 0.001,
-                    roles: list[Literal["recognition", "registration"]] = ["recognition", "registration"],
                     open_camera_window: bool = False,
                     cam_id: int = 0):
     global CAMERA_WIN_NAME, prev_face_features
@@ -224,20 +225,29 @@ def recognizer_loop(camera_uri: str,
                 logger.warning("face not recognized — unknown person")
             else:
                 logger.info(f"*** new face recognized: id={face_id}, confidence={conf:.4f}")
-                data = QueueMsgSchema(msg_type="RECOGNITION", cam_id=cam_id,
-                                      face_id=face_id, create_date=dt.datetime.now())
+                data = QueueMsgSchema(uuid=uuid4(), msg_type="RECOGNITION",
+                                      direction="outgoing", cam_id=cam_id,
+                                      face_id=face_id,
+                                      create_date=dt.datetime.now())
                 mp_queue.put(data.model_dump(), timeout=5)
-            
-        if "registration" in roles:
-            try:
-                data_input: dict = mp_queue.get_nowait()
-            except queue.Empty:
-                data_input = None
-            
-            if data_input:
-                data = QueueMsgSchema(**data_input)
-                if data.msg_type == "REGISTRATION":
-                    db.update_face(data.face_id, face_features)
+                time.sleep(config.vision_setting.recognition.after_recognition_delay)
+    
+        try:
+            data_input: dict = mp_queue.get_nowait()
+        except queue.Empty:
+            data_input = None
+        if data_input:
+            data = QueueMsgSchema(**data_input)
+            if data.direction == "incoming" and data.msg_type == "REGISTRATION" and data.cam_id == cam_id:
+                db.update_face(data.face_id, face_features)
+                # send update data status 
+                payload = QueueMsgSchema(uuid=uuid4(), msg_type="REGISTRATION", 
+                            direction="outgoing", cam_id=cam_id,
+                            face_id=data.face_id, create_date=dt.datetime.now() )
+                mp_queue.put(payload.model_dump(), timeout=5)
+            else:
+                logger.error(f"error while checking appropriate queue selected for data={data}")
+                
 
         # ── overlay label on frame (only if window is open) ──────────────────
         if open_camera_window:
@@ -321,14 +331,29 @@ def recognizer_loop(camera_uri: str,
     
     
 
-def init_recognizers(queue: mp.Queue, open_camera_window: bool = False)-> list[mp.Process]:
+def init_recognizers(open_camera_window: bool = False, begin_processes: bool = True)-> dict[int, Tuple[mp.Process, mp.Queue]]:
+    """inits recognizer process objects and their queues and returns them as a pair in a value of dict 
+    which key is camera id.
+
+    Args:
+        open_camera_window (bool, optional): _description_. Defaults to False.
+        begin_processes (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        dict[int, Tuple[mp.Process, mp.Queue]]: key is camera id (idx in config) value is tuple of (process, queue)
+    """    
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
-    processes = [mp.Process(target=recognizer_loop, 
-                            args=(camera.uri, queue, 
-                                  interval, camera.roles,
-                                  open_camera_window, i),
+    manager = mp.Manager()
+    lock = manager.Lock()
+    recognizer_processes = {}
+    for i, camera in enumerate(config.cameras):
+        queue = manager.Queue(maxsize=30) # separate queue for each process
+        process = mp.Process(target=recognizer_loop, 
+                            args=(camera.uri, queue, lock,
+                                  interval, open_camera_window, i),
                             daemon=True,
-                            name=f"recognizer_{i}") 
-                 for i, camera in enumerate(config.cameras)]
-    return processes
+                            name=f"recognizer_{i}")
+        if begin_processes: process.start()
+        recognizer_processes[i] = (process, queue)
+    return recognizer_processes

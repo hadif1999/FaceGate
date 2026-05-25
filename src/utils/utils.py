@@ -15,6 +15,7 @@ from inspect import iscoroutinefunction
 import time, aiofiles
 import hashlib
 import numpy as np, cv2
+from src.config import Camera
 
 # def restart_app(update_global_config_from_server: bool = False, backend: Literal["mavsdk", "pymavlink"]|None = None):
 #     """Restarts the current program, with file objects and descriptors open"""
@@ -160,3 +161,23 @@ def crop_by_corners(img: np.ndarray, tl_pt: tuple[int, int], br_pt: tuple[int, i
     # Crop (slicing: rows y1..y2, columns x1..x2)
     cropped = img[y1:y2, x1:x2].copy()
     return cropped
+
+
+
+
+def find_cam_idx_by_ip(target_ip: str|None, cams: list[Camera],
+                       use_role_if_not_found: bool = True)-> None|int:
+    # find by ip
+    if target_ip:
+        for i, cam in enumerate(cams):
+            if target_ip in cam.uri:
+                return i
+    if not use_role_if_not_found:
+        return
+    for i, cam in enumerate(cams):
+        if cam.can_register:
+            return i
+    
+
+
+

@@ -16,10 +16,8 @@ mp.set_start_method("fork")
 async def tasks_runner(interval: float = 0.001, open_camera_window = False):
     config = ConfigManager.get_config()
     config.vision_setting.interval_sec = interval
-    queue = mp.Queue(maxsize=30)
-    recognizer_tasks = init_recognizers(queue, open_camera_window)
-    for task in recognizer_tasks:
-        task.start()
+    recognizer_tasks = init_recognizers(open_camera_window, begin_processes=True)
+    
     
     try:
         while True:
@@ -81,7 +79,7 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
     try:
         
         asyncio.run(tasks_runner(interval=interval or config.vision_setting.interval_sec,
-                                open_camera_window=open_camera_window),
+                                open_camera_window=open_camera_window or config.general.open_camera_windows),
                                 loop_factory=uvloop.new_event_loop)
         
     except SystemExit as e:
