@@ -53,9 +53,16 @@ def _resolve_runtime_paths():
     if config_dir is None:
         return
 
+    data_dir = config_dir / "data"
+    logs_dir = data_dir / "logs"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
     db_path = pathlib.Path(config.vision_setting.face_DB_path)
     if not db_path.is_absolute():
-        config.vision_setting.face_DB_path = str((config_dir / db_path).resolve())
+        db_path = (config_dir / db_path).resolve()
+        config.vision_setting.face_DB_path = str(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _run_tasks(coro):
