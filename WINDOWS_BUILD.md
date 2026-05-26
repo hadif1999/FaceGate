@@ -10,10 +10,22 @@ From the project root in PowerShell:
 .\scripts\build_windows.ps1 -Clean
 ```
 
+Before building, confirm the spec file exists in the project root:
+
+```powershell
+Test-Path .\gym_vision.spec
+```
+
+This must print:
+
+```text
+True
+```
+
 This runs:
 
 ```powershell
-uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
+uv run --with pyinstaller pyinstaller --clean --noconfirm .\gym_vision.spec
 ```
 
 Output:
