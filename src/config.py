@@ -284,6 +284,14 @@ class ConfigManager:
         if path is None and raise_ifNone:
             raise ValueError("config path is None")
         return path
+
+    @staticmethod
+    def get_config_dir(raise_ifNone: bool = True):
+        import pathlib
+        path = __class__.get_config_path(raise_ifNone)
+        if path is None:
+            return None
+        return pathlib.Path(path).resolve().parent
             
             
     @classmethod
