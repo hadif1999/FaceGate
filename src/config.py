@@ -88,7 +88,7 @@ class AppConfig(BaseSettings):
     general: General
     cameras: list[Camera] = Field(default_factory=list)
     vision_setting: VisionSetting = Field(default_factory=VisionSetting)
-    rest_api: RestAPI
+    rest_api: RestAPI = Field(default_factory=RestAPI)
     websocket_server: WebsocketServer
     health_check: HealthCheck
     model_config = SettingsConfigDict(

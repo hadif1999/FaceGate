@@ -180,4 +180,10 @@ def find_cam_idx_by_ip(target_ip: str|None, cams: list[Camera],
     
 
 
-
+def restart_app():
+    """Restarts the current program, with file objects and descriptors open"""
+    logger.info("Restarting...")
+    python = sys.executable
+    cmd = [python] + sys.argv
+    logger.debug(f"{cmd = }")
+    os.execv(python, cmd)

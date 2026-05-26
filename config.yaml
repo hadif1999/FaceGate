@@ -3,7 +3,7 @@ general:
   open_camera_windows: false
 # define each camera properties and their role
 cameras:
-  - URI: /dev/video2
+  - URI: rtsp://admin:Latika1405@192.168.1.64:554/Streaming/Channels/102
     can_register: true
   - URI: /dev/video0
     can_register: false

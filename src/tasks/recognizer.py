@@ -149,6 +149,57 @@ def recognizer_loop(camera_uri: str,
     
     # ── main loop ─────────────────────────────────────────────────────────────
     while True:
+        try:
+            while True:
+                data_input: dict = mp_queue.get_nowait()
+                data = QueueMsgSchema(**data_input)
+                if data.direction != "incoming" or data.cam_id != cam_id:
+                    mp_queue.put(data_input, timeout=1)
+                    break
+
+                if data.msg_type == "CHECK_CAMERA":
+                    status = bool(cap is not None and cap.isOpened())
+                    payload = QueueMsgSchema(
+                        uuid=uuid4(),
+                        msg_type="CAMERA_STATUS",
+                        direction="outgoing",
+                        cam_id=cam_id,
+                        status=status,
+                        camera_uri=camera_uri,
+                        message="camera is open" if status else "camera is not open",
+                        create_date=dt.datetime.now(),
+                    )
+                    mp_queue.put(payload.model_dump(), timeout=5)
+                elif data.msg_type == "REGISTRATION":
+                    if face_features is None:
+                        payload = QueueMsgSchema(
+                            uuid=uuid4(),
+                            msg_type="REGISTRATION",
+                            direction="outgoing",
+                            cam_id=cam_id,
+                            face_id=data.face_id,
+                            status=False,
+                            message="no face features available for registration",
+                            create_date=dt.datetime.now(),
+                        )
+                        mp_queue.put(payload.model_dump(), timeout=5)
+                    else:
+                        db.update_face(data.face_id, face_features)
+                        payload = QueueMsgSchema(
+                            uuid=uuid4(),
+                            msg_type="REGISTRATION",
+                            direction="outgoing",
+                            cam_id=cam_id,
+                            face_id=data.face_id,
+                            status=True,
+                            create_date=dt.datetime.now(),
+                        )
+                        mp_queue.put(payload.model_dump(), timeout=5)
+                else:
+                    logger.warning(f"unsupported incoming queue command: {data}")
+        except queue.Empty:
+            pass
+
         frame = read_frame(cap, skip_n_frames=config.vision_setting.skip_n_frames)
         if frame is None: continue
         
@@ -232,23 +283,6 @@ def recognizer_loop(camera_uri: str,
                 mp_queue.put(data.model_dump(), timeout=5)
                 time.sleep(config.vision_setting.recognition.after_recognition_delay)
     
-        try:
-            data_input: dict = mp_queue.get_nowait()
-        except queue.Empty:
-            data_input = None
-        if data_input:
-            data = QueueMsgSchema(**data_input)
-            if data.direction == "incoming" and data.msg_type == "REGISTRATION" and data.cam_id == cam_id:
-                db.update_face(data.face_id, face_features)
-                # send update data status 
-                payload = QueueMsgSchema(uuid=uuid4(), msg_type="REGISTRATION", 
-                            direction="outgoing", cam_id=cam_id,
-                            face_id=data.face_id, create_date=dt.datetime.now() )
-                mp_queue.put(payload.model_dump(), timeout=5)
-            else:
-                logger.error(f"error while checking appropriate queue selected for data={data}")
-                
-
         # ── overlay label on frame (only if window is open) ──────────────────
         if open_camera_window:
             try:
