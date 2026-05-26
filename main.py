@@ -7,7 +7,8 @@ from typing import List, Optional
 from src.Logging import initialize_logger
 import uvloop
 import gc, time
-from src.tasks.recognizer import init_recognizers
+from src.tasks.recognizer import init_recognizers, start_recognizer_process
+from src.tasks.websockets import main_ws_loop
 import multiprocessing as mp
 
 mp.set_start_method("fork")
@@ -17,25 +18,37 @@ async def tasks_runner(interval: float = 0.001, open_camera_window = False):
     config = ConfigManager.get_config()
     config.vision_setting.interval_sec = interval
     recognizer_tasks = init_recognizers(open_camera_window, begin_processes=True)
+    websocket_task = asyncio.create_task(main_ws_loop(recognizer_tasks))
+    restart_after: dict[int, float] = {}
     
     
     try:
         while True:
-            all_tasks_healthy = all([task.is_alive() for task in recognizer_tasks])
-            if not all_tasks_healthy:
-                break
+            for cam_id, (process, in_queue, out_queue) in list(recognizer_tasks.items()):
+                if process.is_alive():
+                    continue
+                now = time.monotonic()
+                if now < restart_after.get(cam_id, 0):
+                    continue
+                logger.error(f"recognizer process cam_id={cam_id} stopped; restarting")
+                new_process = start_recognizer_process(cam_id, in_queue, out_queue, None, open_camera_window)
+                recognizer_tasks[cam_id] = (new_process, in_queue, out_queue)
+                restart_after[cam_id] = now + 5
             await asyncio.sleep(0.1)
     
     except KeyboardInterrupt:
         logger.info("tasks_runner cancelled")
-        for task in recognizer_tasks:
-            task.kill()
+        for process, _, _ in recognizer_tasks.values():
+            process.kill()
     
     except Exception as e:
         logger.exception(f"unhandled exception in tasks_runner: {e}")
-        for task in recognizer_tasks:
-            task.kill()
+        for process, _, _ in recognizer_tasks.values():
+            process.kill()
         raise e
+    finally:
+        websocket_task.cancel()
+        await asyncio.gather(websocket_task, return_exceptions=True)
    
     # tasks = [
     #     asyncio.create_task(recognizer_loop(camera_uri=uri, interval=interval,

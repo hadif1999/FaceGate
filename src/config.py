@@ -25,9 +25,11 @@ class DetectionSetting(BaseModel):
 
 class RecognitionSetting(BaseModel):
     conf_thresh: float = 0.75
+    duplicate_thresh: float = 0.95
     similarity_func: Literal["cosine", "l2"] = "cosine"
     model_name: Literal["sface"] = "sface"
     after_recognition_delay: int = 3
+    enrollment_timeout_sec: float = 11.0
     
 
 class CropSetting(BaseModel):
@@ -40,6 +42,8 @@ class VisionSetting(BaseModel):
     models_path: str
     skip_n_frames: int = 5
     interval_sec: float = 0.01
+    camera_reconnect_interval_sec: float = 5.0
+    camera_status_interval_sec: float = 10.0
     crop: CropSetting
     detection: DetectionSetting = Field(default_factory=DetectionSetting)
     recognition: RecognitionSetting = Field(default_factory=RecognitionSetting)
@@ -78,6 +82,17 @@ class HealthCheck(BaseModel):
 
 class WebsocketServer(BaseModel):
     url: str
+    reconnect_interval_sec: float = 5.0
+
+
+class PerformanceSetting(BaseModel):
+    max_fps_single_camera: float = 8.0
+    max_fps_2_3_cameras: float = 5.0
+    max_fps_4_5_cameras: float = 2.0
+    max_fps_more_cameras: float = 1.0
+    enrollment_fps: float = 8.0
+    frame_resize_width: int = 640
+    opencv_threads_per_process: int = 1
     
     
     
@@ -91,6 +106,7 @@ class AppConfig(BaseSettings):
     rest_api: RestAPI = Field(default_factory=RestAPI)
     websocket_server: WebsocketServer
     health_check: HealthCheck
+    performance: PerformanceSetting = Field(default_factory=PerformanceSetting)
     model_config = SettingsConfigDict(
         case_sensitive=False,           # Environment variables are case-insensitive
         env_prefix="LATIKA__",         # Prefix for all env vars (e.g., MAVLINK__GENERAL__LOG_LEVEL)
@@ -171,6 +187,8 @@ class ConfigManager:
                 with open(path, "r") as file:
                     config_raw: dict = yaml.safe_load(file)
                 merged_config_raw.update(config_raw)
+                if __class__.__CONFIG_PATH is None:
+                    __class__.__CONFIG_PATH = paths[i]
             elif ".py" in path:
                 config_raw: dict = importlib.import_module(path.removesuffix(".py")).config
                 merged_config_raw.update(config_raw)

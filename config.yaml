@@ -14,6 +14,8 @@ vision_setting:
   # these params has effect of performance
   skip_n_frames: 5
   interval_sec: 0.01 
+  camera_reconnect_interval_sec: 5.0
+  camera_status_interval_sec: 10.0
   #####
   # crop setting 
   crop:
@@ -43,4 +45,12 @@ health_check:
 websocket_server:
   url: "ws://127.0.0.1:8888"
 
-
+performance:
+  # Conservative defaults from instrunctions.md for Core i5 Gen7 class CPUs.
+  max_fps_single_camera: 8.0
+  max_fps_2_3_cameras: 5.0
+  max_fps_4_5_cameras: 2.0
+  max_fps_more_cameras: 1.0
+  enrollment_fps: 8.0
+  frame_resize_width: 640
+  opencv_threads_per_process: 1

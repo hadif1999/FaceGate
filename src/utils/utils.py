@@ -115,14 +115,22 @@ def shift_point_percent(img: np.ndarray, pt: tuple[int, int], shift_pct: tuple[i
 
 
 def read_frame(cap: cv2.VideoCapture, skip_n_frames: int = 5):
-    for _ in range(skip_n_frames):
-        if not cap.grab():
-            break
-    ret, frame = cap.retrieve()
-    if not ret or frame is None:
-        logger.error("failed to grab frame, stopping loop.")
+    if cap is None or not cap.isOpened():
         return None
-    return frame
+
+    try:
+        for _ in range(max(skip_n_frames, 1)):
+            if not cap.grab():
+                return None
+        ret, frame = cap.retrieve()
+        if not ret or frame is None or frame.size == 0:
+            return None
+        return frame
+    except cv2.error as e:
+        logger.debug(f"opencv failed while reading frame: {e}")
+    except Exception as e:
+        logger.debug(f"failed while reading frame: {e}")
+    return None
 
 
 
