@@ -10,6 +10,8 @@ From the project root in PowerShell:
 .\scripts\build_windows.ps1 -Clean
 ```
 
+If `uv` is not installed, the script installs it automatically using Astral's official Windows installer, then continues the build.
+
 Before building, confirm the spec file exists in the project root:
 
 ```powershell

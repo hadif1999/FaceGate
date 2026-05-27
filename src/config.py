@@ -83,6 +83,8 @@ class HealthCheck(BaseModel):
 class WebsocketServer(BaseModel):
     url: str
     reconnect_interval_sec: float = 5.0
+    ping_interval_sec: float = 20.0
+    ping_timeout_sec: float = 10.0
 
 
 class PerformanceSetting(BaseModel):

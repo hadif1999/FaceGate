@@ -72,6 +72,10 @@ health_check:
 websocket_server:
   # WebSocket server URL used by the gym software or local test server.
   url: "ws://127.0.0.1:8888"
+  # Seconds between websocket keepalive pings while connected.
+  ping_interval_sec: 20.0
+  # Seconds to wait for a ping response before treating websocket as disconnected.
+  ping_timeout_sec: 10.0
 
 # CPU/performance settings. Defaults are conservative for Core i5 Gen7 class CPUs.
 performance:

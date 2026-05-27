@@ -236,7 +236,14 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
 async def _sender(ws, outbound_ws_queue: asyncio.Queue[dict[str, Any]]):
     while True:
         payload = await outbound_ws_queue.get()
-        await ws.send(json.dumps(payload, default=str))
+        try:
+            await ws.send(json.dumps(payload, default=str))
+        except Exception:
+            try:
+                outbound_ws_queue.put_nowait(payload)
+            except asyncio.QueueFull:
+                logger.error(f"websocket outbound queue full; dropping unsent payload: {payload}")
+            raise
 
 
 async def _receiver(ws, recognizers: RecognizerRuntime, outbound_ws_queue: asyncio.Queue[dict[str, Any]]):
@@ -256,11 +263,16 @@ async def main_ws_loop(recognizers: RecognizerRuntime):
     config = ConfigManager.get_config()
     outbound_ws_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=200)
     queue_task = asyncio.create_task(process_recognizer_queues(recognizers, outbound_ws_queue))
+    reconnect_interval = config.websocket_server.reconnect_interval_sec
 
     try:
         while True:
             try:
-                async with websockets.connect(config.websocket_server.url) as ws:
+                async with websockets.connect(
+                    config.websocket_server.url,
+                    ping_interval=config.websocket_server.ping_interval_sec,
+                    ping_timeout=config.websocket_server.ping_timeout_sec,
+                ) as ws:
                     logger.success(f"connected websocket client to {config.websocket_server.url}")
                     sender_task = asyncio.create_task(_sender(ws, outbound_ws_queue))
                     receiver_task = asyncio.create_task(_receiver(ws, recognizers, outbound_ws_queue))
@@ -270,13 +282,16 @@ async def main_ws_loop(recognizers: RecognizerRuntime):
                     )
                     for task in pending:
                         task.cancel()
+                    if pending:
+                        await asyncio.gather(*pending, return_exceptions=True)
                     for task in done:
                         task.result()
+                    logger.warning("websocket connection closed; reconnecting")
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 logger.error(f"websocket disconnected: {e}")
-                await asyncio.sleep(config.websocket_server.reconnect_interval_sec)
+            await asyncio.sleep(reconnect_interval)
     finally:
         queue_task.cancel()
         await asyncio.gather(queue_task, return_exceptions=True)
