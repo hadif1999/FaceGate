@@ -77,6 +77,7 @@ jobs:
 
           gh release create "$TAG_NAME" dist/gym_vision dist/config.yaml \
             --verify-tag \
+            --target "$GITHUB_SHA" \
             --title "Linux Latest Build" \
             --notes "$NOTES" \
             --latest=false
