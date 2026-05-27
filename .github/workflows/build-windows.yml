@@ -36,8 +36,10 @@ jobs:
       - name: Validate config
         run: uv run python -c "from src.config import ConfigManager; ConfigManager.read_multiple_config_files('config.yaml'); print('config ok')"
 
-      - name: Build one-file executable
-        run: uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
+      - name: Build one-file executables
+        run: |
+          uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
+          uv run --with pyinstaller pyinstaller --clean --noconfirm test_ws_server_gui.spec
 
       - name: Prepare dist folder
         shell: pwsh
@@ -45,6 +47,9 @@ jobs:
           Copy-Item -Force "config.yaml" "dist\config.yaml"
           if (-not (Test-Path "dist\gym_vision.exe")) {
             throw "Expected dist\gym_vision.exe was not generated"
+          }
+          if (-not (Test-Path "dist\test_ws_server_gui.exe")) {
+            throw "Expected dist\test_ws_server_gui.exe was not generated"
           }
           if (-not (Test-Path "dist\config.yaml")) {
             throw "Expected dist\config.yaml was not copied"
@@ -78,7 +83,7 @@ jobs:
           Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
           "@
 
-          gh release create $env:TAG_NAME "dist\gym_vision.exe" "dist\config.yaml" `
+          gh release create $env:TAG_NAME "dist\gym_vision.exe" "dist\test_ws_server_gui.exe" "dist\config.yaml" `
             --verify-tag `
             --target $env:GITHUB_SHA `
             --title "Windows Latest Build" `

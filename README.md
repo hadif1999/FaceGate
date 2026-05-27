@@ -17,7 +17,8 @@ Current release channels:
 
 Each release publishes:
 
-- the executable or binary
+- the FaceGate service executable or binary
+- the GUI WebSocket test server executable or binary
 - `config.yaml`
 
 ## What FaceGate Does
@@ -59,6 +60,7 @@ Download the Windows release assets and keep them together:
 
 ```text
 gym_vision.exe
+test_ws_server_gui.exe
 config.yaml
 ```
 
@@ -78,6 +80,7 @@ Download the Linux release assets and keep them together:
 
 ```text
 gym_vision
+test_ws_server_gui
 config.yaml
 ```
 
@@ -165,6 +168,11 @@ Run:
 uv run python scripts/test_ws_server_gui.py
 ```
 
+Or use the packaged release asset:
+
+- Windows: `test_ws_server_gui.exe`
+- Linux: `test_ws_server_gui`
+
 Features:
 
 - starts a local WebSocket server on `ws://127.0.0.1:8888`
@@ -213,7 +221,7 @@ On every push:
 
 - the corresponding GitHub Actions workflow builds into `dist/`
 - `dist/` is uploaded as a workflow artifact
-- the latest binary and `config.yaml` are published to the GitHub Releases page
+- the latest FaceGate binary, GUI test server binary, and `config.yaml` are published to the GitHub Releases page
 
 Release tags used by automation:
 
