@@ -9,6 +9,18 @@ import numpy as np
 from loguru import logger
 
 
+class FaceDatabaseError(RuntimeError):
+    pass
+
+
+class MemberAlreadyRegisteredError(FaceDatabaseError):
+    pass
+
+
+class PendingRegistrationExistsError(FaceDatabaseError):
+    pass
+
+
 class FaceDatabase:
     """SQLite-backed storage and lookup for 128-dimensional face encodings."""
 
@@ -20,8 +32,9 @@ class FaceDatabase:
     @contextmanager
     def _connect(self):
         """Yield a connection and guarantee it is closed afterwards."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 30000")
         try:
             yield conn
             conn.commit()
@@ -33,6 +46,8 @@ class FaceDatabase:
 
     def _initialize_database(self) -> None:
         with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -129,19 +144,27 @@ class FaceDatabase:
         """Create a member row without embedding for later enrollment."""
         created_at = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, embedding FROM users WHERE member_id = ?",
+                (member_id,),
+            ).fetchone()
+            if row is not None:
+                if row["embedding"] is None:
+                    raise PendingRegistrationExistsError(
+                        f"pending registration already exists for member_id={member_id}"
+                    )
+                raise MemberAlreadyRegisteredError(
+                    f"member_id={member_id} is already registered"
+                )
+
             cursor = conn.execute(
                 """
                 INSERT INTO users (embedding, encoding_dim, member_id, created_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(member_id) DO NOTHING
                 """,
                 (None, 128, member_id, created_at),
             )
-            row = conn.execute(
-                "SELECT id FROM users WHERE member_id = ?",
-                (member_id,),
-            ).fetchone()
-            return int(row["id"] if row else cursor.lastrowid)
+            return int(cursor.lastrowid)
 
 
     def delete_pending_face(self, face_id: int) -> bool:
@@ -166,7 +189,7 @@ class FaceDatabase:
             return cursor.rowcount > 0
 
 
-    def update_face(self, face_id: int, new_encoding: np.ndarray) -> bool:
+    def update_face(self, face_id: int, new_encoding: np.ndarray, pending_only: bool = True) -> bool:
         """
         Replace the embedding vector for an existing user.
 
@@ -178,11 +201,11 @@ class FaceDatabase:
             True if the row was updated, False if the id was not found.
         """
         blob = self._serialize_encoding(new_encoding)
+        sql = "UPDATE users SET embedding = ?, encoding_dim = 128 WHERE id = ?"
+        if pending_only:
+            sql += " AND embedding IS NULL"
         with self._connect() as conn:
-            cursor = conn.execute(
-                "UPDATE users SET embedding = ? WHERE id = ?",
-                (blob, face_id),
-            )
+            cursor = conn.execute(sql, (blob, face_id))
             return cursor.rowcount > 0
         
         
@@ -233,9 +256,14 @@ class FaceDatabase:
             conn.execute("DELETE FROM users")
 
 
-    def count_members(self) -> int:
+    def count_members(self, include_pending: bool = False) -> int:
         with self._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS count FROM users").fetchone()
+            if include_pending:
+                row = conn.execute("SELECT COUNT(*) AS count FROM users").fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS count FROM users WHERE embedding IS NOT NULL"
+                ).fetchone()
         return int(row["count"])
 
     # ------------------------------------------------------------------
@@ -261,7 +289,10 @@ class FaceDatabase:
         return data
 
 
-    def list_members(self) -> list[dict]:
+    def list_members(self, include_pending: bool = False) -> list[dict]:
+        face_data = self.list_face_data()
+        if not include_pending:
+            face_data = [item for item in face_data if item["embedding"] is not None]
         return [
             {
                 "id": item["id"],
@@ -269,7 +300,7 @@ class FaceDatabase:
                 "has_embedding": item["embedding"] is not None,
                 "created_at": item["created_at"],
             }
-            for item in self.list_face_data()
+            for item in face_data
         ]
 
 
