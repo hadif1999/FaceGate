@@ -12,7 +12,7 @@ cameras:
     # When true, this camera is used as the default enrollment camera if reg does not include camIP.
     can_register: true
   # Local webcam/device fallback camera.
-  - URI: /dev/video0
+  - URI: /dev/video2
     # This camera can recognize faces but is not selected for default enrollment.
     can_register: false
 
