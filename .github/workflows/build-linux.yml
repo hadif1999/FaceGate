@@ -31,7 +31,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --default-index https://pypi.org/simple
 
       - name: Compile Python sources
         run: uv run --frozen python -m compileall main.py src
