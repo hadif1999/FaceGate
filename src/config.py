@@ -83,6 +83,8 @@ class HealthCheck(BaseModel):
 class WebsocketServer(BaseModel):
     url: str
     reconnect_interval_sec: float = 5.0
+    ping_interval_sec: float = 20.0
+    ping_timeout_sec: float = 10.0
 
 
 class PerformanceSetting(BaseModel):
@@ -284,6 +286,14 @@ class ConfigManager:
         if path is None and raise_ifNone:
             raise ValueError("config path is None")
         return path
+
+    @staticmethod
+    def get_config_dir(raise_ifNone: bool = True):
+        import pathlib
+        path = __class__.get_config_path(raise_ifNone)
+        if path is None:
+            return None
+        return pathlib.Path(path).resolve().parent
             
             
     @classmethod

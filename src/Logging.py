@@ -7,8 +7,8 @@ from src.config import ConfigManager
 
 def initialize_logger(parent_dir: str = __file__):
     config = ConfigManager.get_config()
-    # Use absolute path for log directory relative to app directory
-    app_dir = Path(parent_dir).parent.resolve()  # Gets the directory of the script
+    config_dir = ConfigManager.get_config_dir(False)
+    app_dir = config_dir if config_dir is not None else Path(parent_dir).parent.resolve()
     directory = app_dir / "data" / "logs"
     
     # Create directory with proper permissions (rwxr-xr-x)

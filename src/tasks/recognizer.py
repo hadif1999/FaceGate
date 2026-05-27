@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from loguru import logger
 
-from src.config import ConfigManager
+from src.config import AppConfig, ConfigManager
 from src.repository.database.controller import FaceDatabase
 from src.repository.detection._detection_base import DetectorBase
 from src.repository.recognition._recognition_base import RecognizerBase
@@ -137,8 +137,12 @@ def recognizer_loop(
     interval: float = 0.001,
     open_camera_window: bool = False,
     cam_id: int = 0,
+    config_snapshot: dict | None = None,
 ):
     global CAMERA_WIN_NAME, prev_face_features
+
+    if ConfigManager.get_config(False) is None and config_snapshot is not None:
+        ConfigManager.update_config(AppConfig.model_validate(config_snapshot))
 
     config = ConfigManager.get_config()
     crop_dim = (
@@ -529,6 +533,7 @@ def recognizer_loop(
 def init_recognizers(open_camera_window: bool = False, begin_processes: bool = True) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
+    config_snapshot = config.model_dump(mode="python")
     lock = mp.Lock()
     recognizer_processes = {}
     for i, camera in enumerate(config.cameras):
@@ -536,7 +541,7 @@ def init_recognizers(open_camera_window: bool = False, begin_processes: bool = T
         out_queue = mp.Queue(maxsize=30)
         process = mp.Process(
             target=recognizer_loop,
-            args=(camera.uri, in_queue, out_queue, lock, interval, open_camera_window, i),
+            args=(camera.uri, in_queue, out_queue, lock, interval, open_camera_window, i, config_snapshot),
             daemon=True,
             name=f"recognizer_{i}",
         )
@@ -554,6 +559,7 @@ def start_recognizer_process(
     open_camera_window: bool = False,
 ) -> mp.Process:
     config = ConfigManager.get_config()
+    config_snapshot = config.model_dump(mode="python")
     process = mp.Process(
         target=recognizer_loop,
         args=(
@@ -564,6 +570,7 @@ def start_recognizer_process(
             config.vision_setting.interval_sec,
             open_camera_window,
             cam_id,
+            config_snapshot,
         ),
         daemon=True,
         name=f"recognizer_{cam_id}",

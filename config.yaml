@@ -1,56 +1,95 @@
+# General application behavior.
 general:
+  # Minimum log level written by Loguru. Use DEBUG while testing, INFO for quieter production logs.
   log_level: DEBUG
+  # When true, OpenCV preview windows are opened for each camera. Keep false on headless/production systems.
   open_camera_windows: false
-# define each camera properties and their role
+
+# Camera definitions. Each entry starts one recognizer process.
 cameras:
+  # Camera stream URI. RTSP URLs and local device paths such as /dev/video0 are supported by OpenCV.
   - URI: rtsp://admin:Latika1405@192.168.1.64:554/Streaming/Channels/102
+    # When true, this camera is used as the default enrollment camera if reg does not include camIP.
     can_register: true
+  # Local webcam/device fallback camera.
   - URI: /dev/video0
+    # This camera can recognize faces but is not selected for default enrollment.
     can_register: false
-# settings related to machine vision
+
+# Vision, database, camera-read, crop, detection, and recognition settings.
 vision_setting:
+  # SQLite database path used to store member IDs and face embeddings.
   face_DB_path: data/face_embeddings.sqlite3
+  # Directory containing model files, including YuNet and SFace ONNX models.
   models_path: models/
-  # these params has effect of performance
+  # Number of frames to skip/grab before retrieving one frame for processing.
   skip_n_frames: 5
+  # Small sleep used inside worker loops. FPS is mainly controlled by the performance section.
   interval_sec: 0.01 
+  # Seconds to wait before retrying a disconnected or unavailable camera.
   camera_reconnect_interval_sec: 5.0
+  # Minimum seconds between repeated camera-status messages when status does not change.
   camera_status_interval_sec: 10.0
-  #####
-  # crop setting 
+  # Crop percentages applied before detection to remove unimportant image edges.
   crop:
+    # Percent removed from left and top of each frame: [left_percent, top_percent].
     tl_reduce_pct: [20, 20]
+    # Percent removed from right and bottom of each frame: [right_percent, bottom_percent].
     br_reduce_pct: [20, 10]
-  # settings related to detection
+  # Face detection settings for OpenCV YuNet.
   detection:
+    # Minimum face detection confidence. Higher reduces false positives but may miss weak faces.
     conf_thresh: 0.75
+    # Non-maximum suppression threshold for merging overlapping detections.
     nms_thresh: 0.6
+    # Maximum number of candidate faces returned by the detector.
     top_k: 10
-    # settings about how much of frame to crop and use in vision models
-
+    # Detector model implementation. Current code supports yunet.
     model_name: yunet
-  # settings related to recognition
+  # Face recognition and enrollment settings for OpenCV SFace.
   recognition:
+    # Minimum similarity score required to recognize a known member.
     conf_thresh: 0.75
+    # Similarity function used for matching embeddings. Current supported values are cosine and l2.
     similarity_func: cosine
+    # Recognition model implementation. Current code supports sface.
     model_name: sface
+    # Per-camera cooldown in seconds after sending a recognition event for a known face.
     after_recognition_delay: 3
-# health-check settings 
-health_check:
-  enabled: true
-  push_to_server: false
-  route: ""
-  interval_sec: 5
-# settings related to websocket
-websocket_server:
-  url: "ws://127.0.0.1:8888"
 
+# Health-check settings reserved for service/system health reporting.
+health_check:
+  # Enables internal health-check scheduling.
+  enabled: true
+  # When true, health status can be pushed to an external server route.
+  push_to_server: false
+  # External health route/path. Empty means no remote health endpoint is configured.
+  route: ""
+  # Seconds between health-check runs.
+  interval_sec: 5
+
+# WebSocket client settings. The vision service connects to this server.
+websocket_server:
+  # WebSocket server URL used by the gym software or local test server.
+  url: "ws://127.0.0.1:8888"
+  # Seconds between websocket keepalive pings while connected.
+  ping_interval_sec: 20.0
+  # Seconds to wait for a ping response before treating websocket as disconnected.
+  ping_timeout_sec: 10.0
+
+# CPU/performance settings. Defaults are conservative for Core i5 Gen7 class CPUs.
 performance:
-  # Conservative defaults from instrunctions.md for Core i5 Gen7 class CPUs.
+  # Target processing FPS when only one camera is configured.
   max_fps_single_camera: 8.0
+  # Target processing FPS per camera when two or three cameras are configured.
   max_fps_2_3_cameras: 5.0
+  # Target processing FPS per camera when four or five cameras are configured.
   max_fps_4_5_cameras: 2.0
+  # Target processing FPS per camera when more than five cameras are configured.
   max_fps_more_cameras: 1.0
+  # Temporary processing FPS during enrollment so registration feels responsive.
   enrollment_fps: 8.0
+  # Frames wider than this are resized before detection while preserving aspect ratio.
   frame_resize_width: 640
+  # OpenCV CPU threads per recognizer process. Keep low with multiple cameras to avoid oversubscription.
   opencv_threads_per_process: 1

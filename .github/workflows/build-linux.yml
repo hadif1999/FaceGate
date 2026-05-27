@@ -1,0 +1,72 @@
+name: Build Linux Binary
+
+on:
+  push:
+    branches:
+      - linux
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux runtime packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libglib2.0-0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Compile Python sources
+        run: uv run --frozen python -m compileall main.py src
+
+      - name: Validate config
+        run: uv run --frozen python -c "from src.config import ConfigManager; ConfigManager.read_multiple_config_files('config.yaml'); print('config ok')"
+
+      - name: Build one-file binary
+        run: uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
+
+      - name: Prepare dist folder
+        run: |
+          cp config.yaml dist/config.yaml
+          chmod +x dist/gym_vision
+          test -f dist/gym_vision
+          test -f dist/config.yaml
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: facegate-linux-dist
+          path: dist/
+
+      - name: Publish latest Linux release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: linux-latest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG_NAME" "$GITHUB_SHA"
+          git push -f origin "$TAG_NAME"
+
+          if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release create "$TAG_NAME" --title "Linux Latest Build" --notes "Automated Linux build for commit $GITHUB_SHA" --latest=false
+          fi
+
+          gh release upload "$TAG_NAME" dist/gym_vision dist/config.yaml --clobber

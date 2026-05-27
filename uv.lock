@@ -197,7 +197,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "setuptools" },
     { name = "typer" },
-    { name = "uvloop" },
+    { name = "uvloop", marker = "platform_system != 'Windows'" },
     { name = "websockets" },
 ]
 
@@ -214,7 +214,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "setuptools", specifier = ">=82.0.1" },
     { name = "typer", specifier = ">=0.25.1" },
-    { name = "uvloop", specifier = ">=0.22.1" },
+    { name = "uvloop", marker = "platform_system != 'Windows'", specifier = ">=0.22.1" },
     { name = "websockets", specifier = ">=16.0" },
 ]
 

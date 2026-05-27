@@ -1,17 +1,84 @@
 import asyncio
-from loguru import logger
-from src.tasks.recognizer import recognizer_loop
-from src.config import ConfigManager
-import typer
+import gc
+import multiprocessing as mp
+import pathlib
+import platform
+import sys
+import time
 from typing import List, Optional
+
+import typer
+from loguru import logger
+
+from src.config import ConfigManager
 from src.Logging import initialize_logger
-import uvloop
-import gc, time
 from src.tasks.recognizer import init_recognizers, start_recognizer_process
 from src.tasks.websockets import main_ws_loop
-import multiprocessing as mp
 
-mp.set_start_method("fork")
+if platform.system() != "Windows":
+    import uvloop
+else:
+    uvloop = None
+
+
+def _app_dir() -> pathlib.Path:
+    if getattr(sys, "frozen", False):
+        return pathlib.Path(sys.executable).resolve().parent
+    return pathlib.Path(__file__).resolve().parent
+
+
+def _resolve_config_paths(config_paths: list[str]) -> list[str]:
+    resolved_paths = []
+    app_dir = _app_dir()
+
+    for config_path in config_paths:
+        path = pathlib.Path(config_path)
+        if path.exists() or path.is_absolute():
+            resolved_paths.append(str(path))
+            continue
+
+        exe_neighbor_path = app_dir / path
+        if exe_neighbor_path.exists():
+            resolved_paths.append(str(exe_neighbor_path))
+            continue
+
+        resolved_paths.append(str(path))
+
+    return resolved_paths
+
+
+def _resolve_runtime_paths():
+    config = ConfigManager.get_config()
+    config_dir = ConfigManager.get_config_dir(False)
+    if config_dir is None:
+        return
+
+    data_dir = config_dir / "data"
+    logs_dir = data_dir / "logs"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    db_path = pathlib.Path(config.vision_setting.face_DB_path)
+    if not db_path.is_absolute():
+        db_path = (config_dir / db_path).resolve()
+        config.vision_setting.face_DB_path = str(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _run_tasks(coro):
+    if uvloop is not None:
+        return asyncio.run(coro, loop_factory=uvloop.new_event_loop)
+    return asyncio.run(coro)
+
+
+def _configure_multiprocessing():
+    mp.freeze_support()
+    if platform.system() == "Windows":
+        return
+    try:
+        mp.set_start_method("fork")
+    except RuntimeError:
+        pass
 
 
 async def tasks_runner(interval: float = 0.001, open_camera_window = False):
@@ -79,8 +146,9 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
         interval: Optional[float] = typer.Option(None, "-i", "--interval", help="interval of vision"),
         open_camera_window: bool = False):
     
-    config = ConfigManager.read_multiple_config_files(*config_paths)
+    config = ConfigManager.read_multiple_config_files(*_resolve_config_paths(config_paths))
     config = ConfigManager.get_config()
+    _resolve_runtime_paths()
             
     if config is None:
         logger.error("config is not initialized from server, using values from config file")
@@ -91,9 +159,12 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
     
     try:
         
-        asyncio.run(tasks_runner(interval=interval or config.vision_setting.interval_sec,
-                                open_camera_window=open_camera_window or config.general.open_camera_windows),
-                                loop_factory=uvloop.new_event_loop)
+        _run_tasks(
+            tasks_runner(
+                interval=interval or config.vision_setting.interval_sec,
+                open_camera_window=open_camera_window or config.general.open_camera_windows,
+            )
+        )
         
     except SystemExit as e:
         logger.critical(f"exiting app with error_code={e.code} ...")
@@ -104,4 +175,5 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
         gc.collect()
 
 if __name__ == "__main__":
+    _configure_multiprocessing()
     typer.run(CLI)
