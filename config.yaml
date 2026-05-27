@@ -10,11 +10,11 @@ cameras:
   # Camera stream URI. RTSP URLs and local device paths such as /dev/video0 are supported by OpenCV.
   - URI: rtsp://admin:Latika1405@192.168.1.64:554/Streaming/Channels/102
     # When true, this camera is used as the default enrollment camera if reg does not include camIP.
-    can_register: true
+    can_register: false
   # Local webcam/device fallback camera.
   - URI: /dev/video2
     # This camera can recognize faces but is not selected for default enrollment.
-    can_register: false
+    can_register: true
 
 # Vision, database, camera-read, crop, detection, and recognition settings.
 vision_setting:

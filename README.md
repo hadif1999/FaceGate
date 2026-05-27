@@ -236,7 +236,3 @@ Files most users care about:
 - Recognition uses local ONNX models through OpenCV YuNet and SFace.
 - Camera workers are isolated so one camera failure does not stop the whole service.
 - If the WebSocket server is unavailable, FaceGate keeps retrying until it reconnects.
-
-## License and Use
-
-This repository currently does not declare a separate license file. If you plan to distribute or commercialize FaceGate broadly, define the license terms explicitly in the repository.
