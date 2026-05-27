@@ -98,6 +98,11 @@ async def tasks_runner(interval: float = 0.001, open_camera_window = False):
                 if now < restart_after.get(cam_id, 0):
                     continue
                 logger.error(f"recognizer process cam_id={cam_id} stopped; restarting")
+                try:
+                    process.join(timeout=0.1)
+                    process.close()
+                except Exception:
+                    pass
                 new_process = start_recognizer_process(cam_id, in_queue, out_queue, None, open_camera_window)
                 recognizer_tasks[cam_id] = (new_process, in_queue, out_queue)
                 restart_after[cam_id] = now + 5

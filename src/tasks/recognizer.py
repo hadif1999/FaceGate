@@ -1,5 +1,6 @@
 import datetime as dt
 import multiprocessing as mp
+import platform
 import queue
 import random
 import time
@@ -16,6 +17,10 @@ from src.repository.detection._detection_base import DetectorBase
 from src.repository.recognition._recognition_base import RecognizerBase
 from src.tasks.queue import QueueMsgSchema
 from src.utils.utils import crop_percent, read_frame
+
+
+def _get_mp_context() -> mp.context.BaseContext:
+    return mp.get_context("spawn" if platform.system() == "Windows" else "fork")
 
 
 def _get_detector_cls(input_size: tuple[int, int]) -> DetectorBase:
@@ -403,7 +408,11 @@ def recognizer_loop(
                         create_date=dt.datetime.now(),
                     )
                 else:
-                    db.update_face(registering_face_id, face_features)
+                    updated = db.update_face(registering_face_id, face_features)
+                    if not updated:
+                        raise RuntimeError(
+                            f"pending registration row not found for face_id={registering_face_id}"
+                        )
                     payload = QueueMsgSchema(
                         uuid=uuid4(),
                         msg_type="REGISTRATION",
@@ -508,8 +517,8 @@ def recognizer_loop(
                     member_id_check, _ = db.find_match(face_features, 0.95, "cosine")
                     if member_id_check is not None:
                         row = db.get_face_by_member_id(member_id_check)
-                        db.update_face(row["id"], face_features)
-                        logger.success(f"updated member_id={member_id_check}")
+                        if row is not None and db.update_face(row["id"], face_features, pending_only=False):
+                            logger.success(f"updated member_id={member_id_check}")
                 except Exception as e:
                     logger.error(f"face update failed: {e}")
             elif key == ord("d") and face_features is not None:
@@ -534,12 +543,13 @@ def init_recognizers(open_camera_window: bool = False, begin_processes: bool = T
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
-    lock = mp.Lock()
+    ctx = _get_mp_context()
+    lock = ctx.Lock()
     recognizer_processes = {}
     for i, camera in enumerate(config.cameras):
-        in_queue = mp.Queue(maxsize=30)
-        out_queue = mp.Queue(maxsize=30)
-        process = mp.Process(
+        in_queue = ctx.Queue(maxsize=30)
+        out_queue = ctx.Queue(maxsize=30)
+        process = ctx.Process(
             target=recognizer_loop,
             args=(camera.uri, in_queue, out_queue, lock, interval, open_camera_window, i, config_snapshot),
             daemon=True,
@@ -560,13 +570,14 @@ def start_recognizer_process(
 ) -> mp.Process:
     config = ConfigManager.get_config()
     config_snapshot = config.model_dump(mode="python")
-    process = mp.Process(
+    ctx = _get_mp_context()
+    process = ctx.Process(
         target=recognizer_loop,
         args=(
             config.cameras[cam_id].uri,
             in_queue,
             out_queue,
-            lock,
+            lock if lock is not None else ctx.Lock(),
             config.vision_setting.interval_sec,
             open_camera_window,
             cam_id,

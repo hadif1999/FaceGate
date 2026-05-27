@@ -11,7 +11,11 @@ from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
 from src.config import ConfigManager
-from src.repository.database.controller import FaceDatabase
+from src.repository.database.controller import (
+    FaceDatabase,
+    MemberAlreadyRegisteredError,
+    PendingRegistrationExistsError,
+)
 from src.tasks.queue import QueueMsgSchema
 from src.utils.utils import find_cam_idx_by_ip, restart_app
 
@@ -56,6 +60,27 @@ def _camera_uri(cam_id: int) -> str | None:
 
 def _get_runtime_entry(recognizers: RecognizerRuntime, cam_id: int):
     return recognizers.get(cam_id, (None, None, None))
+
+
+def _try_enqueue_ws_payload(
+    outbound_ws_queue: asyncio.Queue[dict[str, Any]],
+    payload: dict[str, Any],
+) -> bool:
+    try:
+        outbound_ws_queue.put_nowait(payload)
+        return True
+    except asyncio.QueueFull:
+        try:
+            dropped = outbound_ws_queue.get_nowait()
+            logger.warning(f"websocket outbound queue full; dropped oldest payload: {dropped}")
+        except asyncio.QueueEmpty:
+            pass
+        try:
+            outbound_ws_queue.put_nowait(payload)
+            return True
+        except asyncio.QueueFull:
+            logger.error(f"websocket outbound queue still full; dropping payload: {payload}")
+            return False
 
 
 def queue_event_to_ws_payload(event: QueueMsgSchema) -> dict[str, Any] | None:
@@ -123,7 +148,7 @@ async def process_recognizer_queues(
 
                 payload = queue_event_to_ws_payload(event)
                 if payload is not None:
-                    await outbound_ws_queue.put(payload)
+                    _try_enqueue_ws_payload(outbound_ws_queue, payload)
         await asyncio.sleep(interval_sec)
 
 
@@ -156,17 +181,21 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     return _json_response(Type="reg", memberID=msg_val.memberID, status=False, message="camera queue not found")
 
                 face_id = db.create_pending_face(msg_val.memberID)
-                in_queue.put(
-                    QueueMsgSchema(
-                        uuid=uuid4(),
-                        msg_type="REGISTERING",
-                        direction="incoming",
-                        cam_id=cam_idx,
-                        face_id=face_id,
-                        member_id=msg_val.memberID,
-                    ).model_dump(),
-                    timeout=1,
-                )
+                try:
+                    in_queue.put(
+                        QueueMsgSchema(
+                            uuid=uuid4(),
+                            msg_type="REGISTERING",
+                            direction="incoming",
+                            cam_id=cam_idx,
+                            face_id=face_id,
+                            member_id=msg_val.memberID,
+                        ).model_dump(),
+                        timeout=1,
+                    )
+                except Exception:
+                    db.delete_pending_face(face_id)
+                    raise
                 return None
 
             case "checkCam":
@@ -226,6 +255,10 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                 return None
     except FileNotFoundError as e:
         return _json_response(Type=msg_val.Type, status=False, message=str(e))
+    except MemberAlreadyRegisteredError as e:
+        return _json_response(Type=msg_val.Type, memberID=msg_val.memberID, status=False, message=str(e))
+    except PendingRegistrationExistsError as e:
+        return _json_response(Type=msg_val.Type, memberID=msg_val.memberID, status=False, message=str(e))
     except queue.Full:
         return _json_response(Type=msg_val.Type, status=False, message="camera command queue is full")
     except Exception as e:
@@ -239,10 +272,7 @@ async def _sender(ws, outbound_ws_queue: asyncio.Queue[dict[str, Any]]):
         try:
             await ws.send(json.dumps(payload, default=str))
         except Exception:
-            try:
-                outbound_ws_queue.put_nowait(payload)
-            except asyncio.QueueFull:
-                logger.error(f"websocket outbound queue full; dropping unsent payload: {payload}")
+            _try_enqueue_ws_payload(outbound_ws_queue, payload)
             raise
 
 
@@ -254,9 +284,11 @@ async def _receiver(ws, recognizers: RecognizerRuntime, outbound_ws_queue: async
                 payload = json.loads(response)
             except json.JSONDecodeError:
                 payload = {"Type": "error", "status": False, "message": response}
-            await outbound_ws_queue.put(payload)
             if payload.get("Type") == "restoreDB" and payload.get("status") is True:
+                await ws.send(json.dumps(payload, default=str))
                 restart_app()
+            else:
+                _try_enqueue_ws_payload(outbound_ws_queue, payload)
 
 
 async def main_ws_loop(recognizers: RecognizerRuntime):
