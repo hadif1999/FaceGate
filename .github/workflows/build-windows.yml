@@ -55,6 +55,17 @@ jobs:
             throw "Expected dist\config.yaml was not copied"
           }
 
+      - name: Create release archive
+        shell: pwsh
+        run: |
+          if (Test-Path "facegate-windows.zip") {
+            Remove-Item -Force "facegate-windows.zip"
+          }
+          Compress-Archive -Path "dist\*" -DestinationPath "facegate-windows.zip"
+          if (-not (Test-Path "facegate-windows.zip")) {
+            throw "Expected facegate-windows.zip was not generated"
+          }
+
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
@@ -83,7 +94,7 @@ jobs:
           Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
           "@
 
-          gh release create $env:TAG_NAME "dist\gym_vision.exe" "dist\test_ws_server_gui.exe" "dist\config.yaml" `
+          gh release create $env:TAG_NAME "facegate-windows.zip" `
             --verify-tag `
             --target $env:GITHUB_SHA `
             --title "Windows Latest Build" `

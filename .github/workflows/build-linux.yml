@@ -55,6 +55,14 @@ jobs:
           test -f dist/test_ws_server_gui
           test -f dist/config.yaml
 
+      - name: Create release archive
+        run: |
+          rm -f facegate-linux.zip
+          cd dist
+          zip -r ../facegate-linux.zip .
+          cd ..
+          test -f facegate-linux.zip
+
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
@@ -79,7 +87,7 @@ jobs:
           Branch: $GITHUB_REF_NAME
           Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
-          gh release create "$TAG_NAME" dist/gym_vision dist/test_ws_server_gui dist/config.yaml \
+          gh release create "$TAG_NAME" facegate-linux.zip \
             --verify-tag \
             --target "$GITHUB_SHA" \
             --title "Linux Latest Build" \
