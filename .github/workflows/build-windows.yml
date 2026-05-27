@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      UV_DEFAULT_INDEX: https://pypi.org/simple
 
     steps:
       - name: Checkout
@@ -26,13 +28,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: uv sync --frozen --default-index https://pypi.org/simple
+        run: uv sync --python 3.12
 
       - name: Compile Python sources
-        run: uv run --frozen python -m compileall main.py src
+        run: uv run python -m compileall main.py src
 
       - name: Validate config
-        run: uv run --frozen python -c "from src.config import ConfigManager; ConfigManager.read_multiple_config_files('config.yaml'); print('config ok')"
+        run: uv run python -c "from src.config import ConfigManager; ConfigManager.read_multiple_config_files('config.yaml'); print('config ok')"
 
       - name: Build one-file executable
         run: uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
