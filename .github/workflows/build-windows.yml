@@ -68,8 +68,18 @@ jobs:
           git push -f origin $env:TAG_NAME
 
           gh release view $env:TAG_NAME *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:TAG_NAME --title "Windows Latest Build" --notes "Automated Windows build for commit $env:GITHUB_SHA" --latest=false
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $env:TAG_NAME --yes
           }
 
-          gh release upload $env:TAG_NAME "dist\gym_vision.exe" "dist\config.yaml" --clobber
+          $notes = @"
+          Automated Windows build for commit $env:GITHUB_SHA
+          Branch: $env:GITHUB_REF_NAME
+          Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          "@
+
+          gh release create $env:TAG_NAME "dist\gym_vision.exe" "dist\config.yaml" `
+            --verify-tag `
+            --title "Windows Latest Build" `
+            --notes $notes `
+            --latest=false
