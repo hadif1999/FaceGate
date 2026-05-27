@@ -1,0 +1,73 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches:
+      - windows
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Compile Python sources
+        run: uv run --frozen python -m compileall main.py src
+
+      - name: Validate config
+        run: uv run --frozen python -c "from src.config import ConfigManager; ConfigManager.read_multiple_config_files('config.yaml'); print('config ok')"
+
+      - name: Build one-file executable
+        run: uv run --with pyinstaller pyinstaller --clean --noconfirm gym_vision.spec
+
+      - name: Prepare dist folder
+        shell: pwsh
+        run: |
+          Copy-Item -Force "config.yaml" "dist\config.yaml"
+          if (-not (Test-Path "dist\gym_vision.exe")) {
+            throw "Expected dist\gym_vision.exe was not generated"
+          }
+          if (-not (Test-Path "dist\config.yaml")) {
+            throw "Expected dist\config.yaml was not copied"
+          }
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: facegate-windows-dist
+          path: dist/
+
+      - name: Publish latest Windows release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: windows-latest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f $env:TAG_NAME $env:GITHUB_SHA
+          git push -f origin $env:TAG_NAME
+
+          gh release view $env:TAG_NAME *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:TAG_NAME --title "Windows Latest Build" --notes "Automated Windows build for commit $env:GITHUB_SHA" --latest=false
+          }
+
+          gh release upload $env:TAG_NAME "dist\gym_vision.exe" "dist\config.yaml" --clobber
