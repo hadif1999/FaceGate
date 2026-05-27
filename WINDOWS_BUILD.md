@@ -37,6 +37,7 @@ Output:
 dist\gym_vision.exe
 dist\test_ws_server_gui.exe
 dist\config.yaml
+facegate-windows.zip
 ```
 
 ## Runtime Config
@@ -50,6 +51,12 @@ dist\
   gym_vision.exe
   test_ws_server_gui.exe
   config.yaml
+```
+
+The build script also creates a release-style archive:
+
+```text
+facegate-windows.zip
 ```
 
 Edit `dist\config.yaml` to change cameras, websocket URL, database path, FPS limits, crop settings, and recognition thresholds. You do not need to rebuild the `.exe` after editing the config.

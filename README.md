@@ -12,14 +12,15 @@ Use the GitHub Releases page for installation packages and latest binaries:
 
 Current release channels:
 
-- `windows-latest`: Windows one-file executable release assets
-- `linux-latest`: Linux binary release assets
+- `windows-latest`: Windows release archive
+- `linux-latest`: Linux release archive
 
 Each release publishes:
 
-- the FaceGate service executable or binary
-- the GUI WebSocket test server executable or binary
-- `config.yaml`
+- a single zip archive containing:
+  - the FaceGate service executable or binary
+  - the GUI WebSocket test server executable or binary
+  - `config.yaml`
 
 ## What FaceGate Does
 
@@ -56,7 +57,13 @@ Key runtime behavior:
 
 ### Windows
 
-Download the Windows release assets and keep them together:
+Download and extract the Windows release archive:
+
+```text
+facegate-windows.zip
+```
+
+Extracted contents:
 
 ```text
 gym_vision.exe
@@ -76,7 +83,13 @@ The Windows packaging flow is documented in [WINDOWS_BUILD.md](WINDOWS_BUILD.md)
 
 ### Linux
 
-Download the Linux release assets and keep them together:
+Download and extract the Linux release archive:
+
+```text
+facegate-linux.zip
+```
+
+Extracted contents:
 
 ```text
 gym_vision
@@ -221,7 +234,7 @@ On every push:
 
 - the corresponding GitHub Actions workflow builds into `dist/`
 - `dist/` is uploaded as a workflow artifact
-- the latest FaceGate binary, GUI test server binary, and `config.yaml` are published to the GitHub Releases page
+- a single platform zip archive is published to the GitHub Releases page
 
 Release tags used by automation:
 

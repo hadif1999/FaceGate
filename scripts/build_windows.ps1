@@ -52,10 +52,16 @@ if ($Clean) {
 
 Copy-Item -Force "config.yaml" "dist\config.yaml"
 
+if (Test-Path "facegate-windows.zip") {
+    Remove-Item -Force "facegate-windows.zip"
+}
+Compress-Archive -Path "dist\*" -DestinationPath "facegate-windows.zip"
+
 Write-Host ""
 Write-Host "Build complete:"
 Write-Host "  dist\gym_vision.exe"
 Write-Host "  dist\test_ws_server_gui.exe"
 Write-Host "  dist\config.yaml"
+Write-Host "  facegate-windows.zip"
 Write-Host ""
 Write-Host "Edit dist\config.yaml after build to change cameras, websocket URL, DB path, FPS, and other runtime settings."
