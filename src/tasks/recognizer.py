@@ -133,7 +133,6 @@ def recognizer_loop(
     camera_uri: str,
     in_queue: mp.Queue,
     out_queue: mp.Queue,
-    lock,
     interval: float = 0.001,
     open_camera_window: bool = False,
     cam_id: int = 0,
@@ -151,7 +150,8 @@ def recognizer_loop(
     )
     performance = config.performance
     try:
-        cv2.setNumThreads(max(1, performance.opencv_threads_per_process))
+        if hasattr(cv2, "setNumThreads"):
+            cv2.setNumThreads(max(1, performance.opencv_threads_per_process))
     except Exception as e:
         logger.debug(f"failed to set OpenCV thread count: {e}")
 
@@ -534,14 +534,13 @@ def init_recognizers(open_camera_window: bool = False, begin_processes: bool = T
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
-    lock = mp.Lock()
     recognizer_processes = {}
     for i, camera in enumerate(config.cameras):
         in_queue = mp.Queue(maxsize=30)
         out_queue = mp.Queue(maxsize=30)
         process = mp.Process(
             target=recognizer_loop,
-            args=(camera.uri, in_queue, out_queue, lock, interval, open_camera_window, i, config_snapshot),
+            args=(camera.uri, in_queue, out_queue, interval, open_camera_window, i, config_snapshot),
             daemon=True,
             name=f"recognizer_{i}",
         )
@@ -555,7 +554,6 @@ def start_recognizer_process(
     cam_id: int,
     in_queue: mp.Queue,
     out_queue: mp.Queue,
-    lock,
     open_camera_window: bool = False,
 ) -> mp.Process:
     config = ConfigManager.get_config()
@@ -566,7 +564,6 @@ def start_recognizer_process(
             config.cameras[cam_id].uri,
             in_queue,
             out_queue,
-            lock,
             config.vision_setting.interval_sec,
             open_camera_window,
             cam_id,

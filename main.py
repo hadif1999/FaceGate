@@ -76,7 +76,7 @@ def _configure_multiprocessing():
     if platform.system() == "Windows":
         return
     try:
-        mp.set_start_method("fork")
+        mp.set_start_method("fork", force=True)
     except RuntimeError:
         pass
 
@@ -98,7 +98,7 @@ async def tasks_runner(interval: float = 0.001, open_camera_window = False):
                 if now < restart_after.get(cam_id, 0):
                     continue
                 logger.error(f"recognizer process cam_id={cam_id} stopped; restarting")
-                new_process = start_recognizer_process(cam_id, in_queue, out_queue, None, open_camera_window)
+                new_process = start_recognizer_process(cam_id, in_queue, out_queue, open_camera_window)
                 recognizer_tasks[cam_id] = (new_process, in_queue, out_queue)
                 restart_after[cam_id] = now + 5
             await asyncio.sleep(0.1)
