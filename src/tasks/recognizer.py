@@ -129,13 +129,20 @@ def _camera_status_payload(cam_id: int, camera_uri: str, status: bool, message: 
     )
 
 
-def _toggle_camera_preview(cam_id: int, enabled: bool) -> None:
+def _toggle_camera_preview(cam_id: int, enabled: bool, window_lock: mp.Lock | None = None) -> None:
     window_name = CAMERA_WIN_NAME + f"_{cam_id}"
     try:
-        if enabled:
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        if window_lock is not None:
+            with window_lock:
+                if enabled:
+                    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                else:
+                    cv2.destroyWindow(window_name)
         else:
-            cv2.destroyWindow(window_name)
+            if enabled:
+                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            else:
+                cv2.destroyWindow(window_name)
     except Exception as e:
         logger.debug(f"failed to toggle camera preview window {cam_id}: {e}")
 
@@ -144,6 +151,7 @@ def recognizer_loop(
     camera_uri: str,
     in_queue: mp.Queue,
     out_queue: mp.Queue,
+    window_lock: mp.Lock | None = None,
     interval: float = 0.001,
     open_camera_window: bool = False,
     cam_id: int = 0,
@@ -249,7 +257,7 @@ def recognizer_loop(
                         logger.warning(f"camShow command missing status: {data}")
                         continue
                     preview_enabled = bool(data.status)
-                    _toggle_camera_preview(cam_id, preview_enabled)
+                    _toggle_camera_preview(cam_id, preview_enabled, window_lock)
                     _queue_put_safe(
                         out_queue,
                         QueueMsgSchema(
@@ -382,11 +390,19 @@ def recognizer_loop(
                 last_no_face_log_at = now
             same_face = False
             if preview_enabled:
-                cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key in (27, ord("q")):
-                    logger.info("quit key pressed, stopping loop")
-                    break
+                try:
+                    if window_lock is not None:
+                        with window_lock:
+                            cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
+                            key = cv2.waitKey(1) & 0xFF
+                    else:
+                        cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
+                        key = cv2.waitKey(1) & 0xFF
+                    if key in (27, ord("q")):
+                        logger.info("quit key pressed, stopping loop")
+                        break
+                except Exception as e:
+                    logger.warning(f"preview update failed: {e}")
             time.sleep(interval)
             continue
 
@@ -518,12 +534,24 @@ def recognizer_loop(
                 x, y, bw, bh = face[:4].astype(int)
                 label = f"id: {member_id}  conf: {conf:.2f}" if member_id is not None else "Unknown"
                 cv2.putText(frame, label, (x, y + bh + 20), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255, 255, 255), 1)
-                cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
+                if window_lock is not None:
+                    with window_lock:
+                        cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
+                else:
+                    cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
             except Exception as e:
                 logger.warning(f"failed to render overlay: {e}")
 
         if preview_enabled:
-            key = cv2.waitKey(1) & 0xFF
+            try:
+                if window_lock is not None:
+                    with window_lock:
+                        key = cv2.waitKey(1) & 0xFF
+                else:
+                    key = cv2.waitKey(1) & 0xFF
+            except Exception as e:
+                logger.warning(f"preview key handling failed: {e}")
+                key = 0
             if key == ord("r") and face_features is not None:
                 try:
                     member_id_check, _ = db.find_match(face_features, 0.95, "cosine")
@@ -558,10 +586,17 @@ def recognizer_loop(
 
     logger.info("releasing camera and destroying windows")
     _release_capture(cap)
-    cv2.destroyAllWindows()
+    try:
+        if window_lock is not None:
+            with window_lock:
+                cv2.destroyWindow(CAMERA_WIN_NAME + f"_{cam_id}")
+        else:
+            cv2.destroyWindow(CAMERA_WIN_NAME + f"_{cam_id}")
+    except Exception as e:
+        logger.debug(f"failed to destroy camera window {cam_id}: {e}")
 
 
-def init_recognizers(force_open_camera_window: bool = False, begin_processes: bool = True) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
+def init_recognizers(force_open_camera_window: bool = False, begin_processes: bool = True, window_lock: mp.Lock | None = None) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
@@ -571,7 +606,7 @@ def init_recognizers(force_open_camera_window: bool = False, begin_processes: bo
         out_queue = mp.Queue(maxsize=30)
         process = mp.Process(
             target=recognizer_loop,
-            args=(camera.uri, in_queue, out_queue, interval, force_open_camera_window or camera.open_camera_window, i, config_snapshot),
+            args=(camera.uri, in_queue, out_queue, window_lock, interval, force_open_camera_window or camera.open_camera_window, i, config_snapshot),
             daemon=True,
             name=f"recognizer_{i}",
         )
@@ -586,6 +621,7 @@ def start_recognizer_process(
     in_queue: mp.Queue,
     out_queue: mp.Queue,
     force_open_camera_window: bool = False,
+    window_lock: mp.Lock | None = None,
 ) -> mp.Process:
     config = ConfigManager.get_config()
     config_snapshot = config.model_dump(mode="python")
@@ -595,6 +631,7 @@ def start_recognizer_process(
             config.cameras[cam_id].uri,
             in_queue,
             out_queue,
+            window_lock,
             config.vision_setting.interval_sec,
             force_open_camera_window or config.cameras[cam_id].open_camera_window,
             cam_id,
