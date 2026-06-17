@@ -23,3 +23,7 @@ dependencies = [
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
+
+
+[tool.uv]
+python-preference = "only-system"
