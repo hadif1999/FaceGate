@@ -1,3 +1,8 @@
+import os
+
+# Must be set before OpenCV/Tk initializes X11/XCB on Linux.
+os.environ.setdefault("LIBXCB_ALLOW_SLOPPY_LOCK", "1")
+
 import asyncio
 import gc
 import multiprocessing as mp
@@ -76,15 +81,16 @@ def _configure_multiprocessing():
     if platform.system() == "Windows":
         return
     try:
-        mp.set_start_method("fork")
+        mp.set_start_method("spawn", force=True)
     except RuntimeError:
         pass
 
 
-async def tasks_runner(interval: float = 0.001, open_camera_window = False):
+async def tasks_runner(interval: float = 0.001, force_open_camera_window: bool = False):
     config = ConfigManager.get_config()
     config.vision_setting.interval_sec = interval
-    recognizer_tasks = init_recognizers(open_camera_window, begin_processes=True)
+    window_lock = mp.RLock()
+    recognizer_tasks = init_recognizers(force_open_camera_window, begin_processes=True, window_lock=window_lock)
     websocket_task = asyncio.create_task(main_ws_loop(recognizer_tasks))
     restart_after: dict[int, float] = {}
     
@@ -98,12 +104,7 @@ async def tasks_runner(interval: float = 0.001, open_camera_window = False):
                 if now < restart_after.get(cam_id, 0):
                     continue
                 logger.error(f"recognizer process cam_id={cam_id} stopped; restarting")
-                try:
-                    process.join(timeout=0.1)
-                    process.close()
-                except Exception:
-                    pass
-                new_process = start_recognizer_process(cam_id, in_queue, out_queue, None, open_camera_window)
+                new_process = start_recognizer_process(cam_id, in_queue, out_queue, force_open_camera_window, window_lock)
                 recognizer_tasks[cam_id] = (new_process, in_queue, out_queue)
                 restart_after[cam_id] = now + 5
             await asyncio.sleep(0.1)
@@ -167,7 +168,7 @@ def CLI(config_paths: List[str] = typer.Option(["config.yaml"], "-c", "--config-
         _run_tasks(
             tasks_runner(
                 interval=interval or config.vision_setting.interval_sec,
-                open_camera_window=open_camera_window or config.general.open_camera_windows,
+                force_open_camera_window=open_camera_window,
             )
         )
         

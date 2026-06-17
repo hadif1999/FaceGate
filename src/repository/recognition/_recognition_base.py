@@ -20,7 +20,7 @@ class RecognizerBase:
     
     def match(self, face_feature1:cv2.typing.MatLike ,
             face_feature2: cv2.typing.MatLike,
-            dis_type: int = cv2.FaceRecognizerSF_FR_COSINE):
+            dis_type: int = 0):
         pass
     
     
