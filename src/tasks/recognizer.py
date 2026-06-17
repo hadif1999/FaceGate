@@ -129,6 +129,17 @@ def _camera_status_payload(cam_id: int, camera_uri: str, status: bool, message: 
     )
 
 
+def _toggle_camera_preview(cam_id: int, enabled: bool) -> None:
+    window_name = CAMERA_WIN_NAME + f"_{cam_id}"
+    try:
+        if enabled:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        else:
+            cv2.destroyWindow(window_name)
+    except Exception as e:
+        logger.debug(f"failed to toggle camera preview window {cam_id}: {e}")
+
+
 def recognizer_loop(
     camera_uri: str,
     in_queue: mp.Queue,
@@ -167,6 +178,7 @@ def recognizer_loop(
     detector: DetectorBase | None = None
     recognizer: RecognizerBase | None = None
     same_face = False
+    preview_enabled = open_camera_window
     recognition_conf = config.vision_setting.recognition
     base_target_fps = max(calculate_target_fps(len(config.cameras)), 0.1)
     enrollment_target_fps = max(performance.enrollment_fps, base_target_fps)
@@ -231,6 +243,25 @@ def recognizer_loop(
                     logger.info(
                         f"registration started cam_id={cam_id} face_id={registering_face_id} "
                         f"member_id={registering_member_id}"
+                    )
+                elif data.msg_type == "CAM_SHOW":
+                    if data.status is None:
+                        logger.warning(f"camShow command missing status: {data}")
+                        continue
+                    preview_enabled = bool(data.status)
+                    _toggle_camera_preview(cam_id, preview_enabled)
+                    _queue_put_safe(
+                        out_queue,
+                        QueueMsgSchema(
+                            uuid=uuid4(),
+                            msg_type="CAM_SHOW",
+                            direction="outgoing",
+                            cam_id=cam_id,
+                            status=preview_enabled,
+                            camera_uri=camera_uri,
+                            message="camera preview enabled" if preview_enabled else "camera preview disabled",
+                            create_date=dt.datetime.now(),
+                        ),
                     )
                 else:
                     logger.warning(f"unsupported incoming queue command: {data}")
@@ -350,7 +381,7 @@ def recognizer_loop(
                 logger.debug("no faces detected, waiting...")
                 last_no_face_log_at = now
             same_face = False
-            if open_camera_window:
+            if preview_enabled:
                 cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key in (27, ord("q")):
@@ -363,7 +394,7 @@ def recognizer_loop(
             logger.warning(f"detected {len(faces)} faces, selecting face with biggest area")
         face = max(faces, key=lambda f: f[2] * f[3])
 
-        if open_camera_window:
+        if preview_enabled:
             for f in faces:
                 draw_rect_on_frame(frame, f)
             draw_rect_on_frame(frame, face, (0, 0, 255))
@@ -482,7 +513,7 @@ def recognizer_loop(
                     )
                     last_recognition_sent_at = now
 
-        if open_camera_window:
+        if preview_enabled:
             try:
                 x, y, bw, bh = face[:4].astype(int)
                 label = f"id: {member_id}  conf: {conf:.2f}" if member_id is not None else "Unknown"
@@ -491,7 +522,7 @@ def recognizer_loop(
             except Exception as e:
                 logger.warning(f"failed to render overlay: {e}")
 
-        if open_camera_window:
+        if preview_enabled:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("r") and face_features is not None:
                 try:

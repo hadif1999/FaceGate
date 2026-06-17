@@ -221,6 +221,8 @@ class WebsocketGui(tk.Tk):
             [
                 ("Check All", self._send_check_all),
                 ("Check IP", self._send_check_ip),
+                ("Show Cam", self._send_cam_show_true),
+                ("Hide Cam", self._send_cam_show_false),
             ],
         )
         self._add_button_group(
@@ -340,6 +342,20 @@ class WebsocketGui(tk.Tk):
     def _send_check_ip(self) -> None:
         cam_ip = self.cam_ip_var.get().strip()
         self._send({"Type": "checkCam", **({"camIP": cam_ip} if cam_ip else {})})
+
+    def _send_cam_show_true(self) -> None:
+        cam_ip = self.cam_ip_var.get().strip()
+        if not cam_ip:
+            messagebox.showerror("Missing camIP", "camIP is required for camShow.")
+            return
+        self._send({"Type": "camShow", "camIP": cam_ip, "status": True})
+
+    def _send_cam_show_false(self) -> None:
+        cam_ip = self.cam_ip_var.get().strip()
+        if not cam_ip:
+            messagebox.showerror("Missing camIP", "camIP is required for camShow.")
+            return
+        self._send({"Type": "camShow", "camIP": cam_ip, "status": False})
 
     def _send_reg(self) -> None:
         try:

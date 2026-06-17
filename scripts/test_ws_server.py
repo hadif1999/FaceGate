@@ -46,6 +46,11 @@ def parse_command(raw: str) -> dict[str, Any] | None:
             if len(parts) > 1:
                 payload["camIP"] = parts[1]
             return payload
+        case "camShow":
+            if len(parts) < 3:
+                raise ValueError("usage: camShow <camIP> <true|false>")
+            status = parts[2].lower() in {"1", "true", "yes", "on"}
+            return {"Type": "camShow", "camIP": parts[1], "status": status}
         case "reg":
             if len(parts) < 2:
                 raise ValueError("usage: reg <memberID> [camIP]")
@@ -105,7 +110,7 @@ async def send_payload(state: ServerState, payload: dict[str, Any]) -> None:
 
 async def stdin_loop(state: ServerState) -> None:
     print(
-        "commands: connection | countDB | getList | checkCam [ip] | "
+        "commands: connection | countDB | getList | checkCam [ip] | camShow <ip> <true|false> | "
         "reg <memberID> [ip] | del <memberID> | delAll | getDB <dir> | "
         "restoreDB <db-file> | raw JSON | quit",
         flush=True,
@@ -137,6 +142,7 @@ async def auto_probe(state: ServerState, cam_ip: str | None) -> None:
         {"Type": "countDB"},
         {"Type": "getList"},
         {"Type": "checkCam", **({"camIP": cam_ip} if cam_ip else {})},
+        {"Type": "camShow", **({"camIP": cam_ip, "status": True} if cam_ip else {})},
     ]
 
     for payload in commands:

@@ -5,7 +5,7 @@ from uuid import UUID
 
 class QueueMsgSchema(BaseModel):
     uuid: UUID
-    msg_type: Literal["REGISTERING", "REGISTRATION", "RECOGNITION", "CHECK_CAMERA", "CAMERA_STATUS", "ERROR"]
+    msg_type: Literal["REGISTERING", "REGISTRATION", "RECOGNITION", "CHECK_CAMERA", "CAMERA_STATUS", "CAM_SHOW", "ERROR"]
     direction: Literal["incoming", "outgoing", "broadcast"]
     cam_id: int
     face_id: int | None = None

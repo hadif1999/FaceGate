@@ -30,10 +30,12 @@ class WsMsgSchema(BaseModel):
         "checkCam",
         "getDB",
         "restoreDB",
+        "camShow",
         "face",
     ]
     memberID: int | None = None
     camIP: str | None = None
+    status: bool | None = None
     address: str | None = Field(default=None, alias="Address")
 
     model_config = {"populate_by_name": True}
@@ -82,6 +84,14 @@ def queue_event_to_ws_payload(event: QueueMsgSchema) -> dict[str, Any] | None:
         case "CAMERA_STATUS":
             return _response(
                 Type="checkCam",
+                IP=event.camera_uri or _camera_uri(event.cam_id),
+                camID=event.cam_id,
+                status=event.status,
+                message=event.message,
+            )
+        case "CAM_SHOW":
+            return _response(
+                Type="camShow",
                 IP=event.camera_uri or _camera_uri(event.cam_id),
                 camID=event.cam_id,
                 status=event.status,
@@ -164,6 +174,29 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                         cam_id=cam_idx,
                         face_id=face_id,
                         member_id=msg_val.memberID,
+                    ).model_dump(),
+                    timeout=1,
+                )
+                return None
+
+            case "camShow":
+                if msg_val.camIP is None:
+                    return _json_response(Type="camShow", status=False, message="camIP is required")
+                if msg_val.status is None:
+                    return _json_response(Type="camShow", status=False, message="status is required")
+                cam_idx = find_cam_idx_by_ip(msg_val.camIP, config.cameras, use_role_if_not_found=False)
+                if cam_idx is None:
+                    return _json_response(Type="camShow", IP=msg_val.camIP, status=False, message="camera not found")
+                _, in_queue, _ = _get_runtime_entry(recognizers, cam_idx)
+                if in_queue is None:
+                    return _json_response(Type="camShow", IP=msg_val.camIP, status=False, message="camera queue not found")
+                in_queue.put(
+                    QueueMsgSchema(
+                        uuid=uuid4(),
+                        msg_type="CAM_SHOW",
+                        direction="incoming",
+                        cam_id=cam_idx,
+                        status=msg_val.status,
                     ).model_dump(),
                     timeout=1,
                 )
