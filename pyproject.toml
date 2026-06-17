@@ -3,7 +3,7 @@ name = "gym-vision"
 version = "0.3.0"
 description = "gym face recognition for Latika written by hadi fathi"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "aiofiles>=25.1.0",
     "ipykernel>=7.2.0",
@@ -21,5 +21,5 @@ dependencies = [
 ]
 
 [[tool.uv.index]]
-url = "https://mirror-pypi.runflare.com/simple"
+url = "https://pypi.org/simple"
 default = true

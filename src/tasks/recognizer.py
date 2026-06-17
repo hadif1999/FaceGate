@@ -530,7 +530,7 @@ def recognizer_loop(
     cv2.destroyAllWindows()
 
 
-def init_recognizers(open_camera_window: bool = False, begin_processes: bool = True) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
+def init_recognizers(force_open_camera_window: bool = False, begin_processes: bool = True) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
@@ -540,7 +540,7 @@ def init_recognizers(open_camera_window: bool = False, begin_processes: bool = T
         out_queue = mp.Queue(maxsize=30)
         process = mp.Process(
             target=recognizer_loop,
-            args=(camera.uri, in_queue, out_queue, interval, open_camera_window, i, config_snapshot),
+            args=(camera.uri, in_queue, out_queue, interval, force_open_camera_window or camera.open_camera_window, i, config_snapshot),
             daemon=True,
             name=f"recognizer_{i}",
         )
@@ -554,7 +554,7 @@ def start_recognizer_process(
     cam_id: int,
     in_queue: mp.Queue,
     out_queue: mp.Queue,
-    open_camera_window: bool = False,
+    force_open_camera_window: bool = False,
 ) -> mp.Process:
     config = ConfigManager.get_config()
     config_snapshot = config.model_dump(mode="python")
@@ -565,7 +565,7 @@ def start_recognizer_process(
             in_queue,
             out_queue,
             config.vision_setting.interval_sec,
-            open_camera_window,
+            force_open_camera_window or config.cameras[cam_id].open_camera_window,
             cam_id,
             config_snapshot,
         ),

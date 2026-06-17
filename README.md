@@ -95,8 +95,8 @@ FaceGate is configured through `config.yaml`.
 
 Main config groups:
 
-- `general`: logging and preview window behavior
-- `cameras`: camera URIs and which camera is allowed to handle default registration
+- `general`: logging behavior
+- `cameras`: camera URIs, per-camera preview windows, and which camera is allowed to handle default registration
 - `vision_setting`: database path, models path, crop, detection, recognition, and camera reconnect behavior
 - `websocket_server`: external server URL and keepalive settings
 - `performance`: adaptive FPS and CPU-related controls

@@ -52,6 +52,7 @@ class VisionSetting(BaseModel):
 class Camera(BaseModel):
     uri: str = Field(alias="URI")
     can_register: bool = False
+    open_camera_window: bool = False
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -69,8 +70,7 @@ class RestAPI(BaseModel):
 
 class General(BaseModel):
     log_level: str = "DEBUG"
-    open_camera_windows: bool = False
-    
+
 
     
 class HealthCheck(BaseModel):
