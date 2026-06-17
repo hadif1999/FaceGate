@@ -69,6 +69,15 @@ class RestAPI(BaseModel):
 class General(BaseModel):
     log_level: str = "DEBUG"
 
+    @field_validator("log_level")
+    @classmethod
+    def normalize_log_level(cls, value: str) -> str:
+        level = value.strip().upper()
+        allowed = {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}
+        if level not in allowed:
+            raise ValueError(f"unsupported log_level: {value!r}")
+        return level
+
 
 class HealthCheck(BaseModel):
     enabled: bool = True

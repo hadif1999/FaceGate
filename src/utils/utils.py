@@ -173,19 +173,28 @@ def crop_by_corners(img: np.ndarray, tl_pt: tuple[int, int], br_pt: tuple[int, i
 
 
 
-def find_cam_idx_by_ip(target_ip: str|None, cams: list[Camera],
-                       use_role_if_not_found: bool = True)-> None|int:
-    # find by ip
-    if target_ip:
+def find_cam_idx_by_ip(target_ip: str | int | None, cams: list[Camera],
+                       use_role_if_not_found: bool = True) -> None | int:
+    # Match either a literal string URI/IP or a numeric device index.
+    if target_ip is not None:
         for i, cam in enumerate(cams):
-            if target_ip in cam.uri:
-                return i
+            cam_uri = cam.uri
+            if isinstance(target_ip, int):
+                if cam_uri == target_ip:
+                    return i
+                if isinstance(cam_uri, str) and cam_uri == str(target_ip):
+                    return i
+            else:
+                if isinstance(cam_uri, int):
+                    if target_ip == str(cam_uri):
+                        return i
+                elif target_ip in cam_uri:
+                    return i
     if not use_role_if_not_found:
         return
     for i, cam in enumerate(cams):
         if cam.can_register:
             return i
-    
 
 
 def restart_app():

@@ -1,19 +1,19 @@
 # General application behavior.
 general:
   # Minimum log level written by Loguru. Use DEBUG while testing, INFO for quieter production logs.
-  log_level: DEBUG
+  log_level: INFO
 
 # Camera definitions. Each entry starts one recognizer process.
 cameras:
   # Camera stream URI. RTSP URLs and local device paths such as /dev/video0 are supported by OpenCV.
   - URI: 0
     # When true, this camera is used as the default enrollment camera if reg does not include camIP.
-    can_register: true
+    can_register: false
     open_camera_window: false
   # Local webcam/device fallback camera.
   - URI: /dev/video2
     # This camera can recognize faces but is not selected for default enrollment.
-    can_register: false
+    can_register: true
     # When true, OpenCV opens a preview window for this camera only. Keep false on headless/production systems.
     open_camera_window: true
 
