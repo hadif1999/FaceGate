@@ -1,4 +1,9 @@
 import os
+
+# Must be set before tkinter initializes X11/XCB. Some Linux desktops abort
+# when Tk and other GUI clients share the same X connection without this.
+os.environ["LIBXCB_ALLOW_SLOPPY_LOCK"] = "1"
+
 import asyncio
 import json
 import queue
@@ -9,7 +14,6 @@ from tkinter import messagebox, scrolledtext, ttk
 from tkinter import font as tkfont
 from typing import Any
 
-# os.environ.setdefault("LIBXCB_ALLOW_SLOPPY_LOCK", "1")
 
 import websockets
 

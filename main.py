@@ -1,3 +1,8 @@
+import os
+
+# Must be set before OpenCV/Tk initializes X11/XCB on Linux.
+os.environ.setdefault("LIBXCB_ALLOW_SLOPPY_LOCK", "1")
+
 import asyncio
 import gc
 import multiprocessing as mp
