@@ -49,7 +49,7 @@ def _json_response(**payload) -> str:
     return json.dumps(_response(**payload), default=str)
 
 
-def _camera_uri(cam_id: int) -> str | None:
+def _camera_uri(cam_id: int) -> str | int | None:
     config = ConfigManager.get_config()
     if 0 <= cam_id < len(config.cameras):
         return config.cameras[cam_id].uri

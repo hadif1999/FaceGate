@@ -15,7 +15,7 @@ class QueueMsgSchema(BaseModel):
     similar_member_id: int | None = None
     confidence: float | None = None
     message: str | None = None
-    camera_uri: str | None = None
+    camera_uri: str | int | None = None
     create_date: dt.datetime = Field(default_factory=dt.datetime.now)
     
     

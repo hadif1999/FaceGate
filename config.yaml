@@ -6,7 +6,7 @@ general:
 # Camera definitions. Each entry starts one recognizer process.
 cameras:
   # Camera stream URI. RTSP URLs and local device paths such as /dev/video0 are supported by OpenCV.
-  - URI: /dev/video0
+  - URI: 0
     # When true, this camera is used as the default enrollment camera if reg does not include camIP.
     can_register: true
     open_camera_window: false
