@@ -1,3 +1,9 @@
+import os
+
+# Must be set before tkinter initializes X11/XCB. Some Linux desktops abort
+# when Tk and other GUI clients share the same X connection without this.
+os.environ["LIBXCB_ALLOW_SLOPPY_LOCK"] = "1"
+
 import asyncio
 import json
 import queue
@@ -7,6 +13,7 @@ from dataclasses import dataclass, field
 from tkinter import messagebox, scrolledtext, ttk
 from tkinter import font as tkfont
 from typing import Any
+
 
 import websockets
 
@@ -92,7 +99,9 @@ class WebsocketTestServer:
             self._emit("status", "no websocket client is connected")
             return
 
-        await self.state.last_client.send(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
+        await self.state.last_client.send(
+            json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        )
         self._emit("sent", json.dumps(payload, indent=2, ensure_ascii=False))
 
     def _send_done(self, future: asyncio.Future) -> None:
@@ -150,7 +159,9 @@ class WebsocketGui(tk.Tk):
             pass
 
         style.configure("App.TFrame", background="#f4f6f8")
-        style.configure("Panel.TLabelframe", background="#ffffff", borderwidth=1, relief="solid")
+        style.configure(
+            "Panel.TLabelframe", background="#ffffff", borderwidth=1, relief="solid"
+        )
         style.configure(
             "Panel.TLabelframe.Label",
             background="#f4f6f8",
@@ -158,10 +169,28 @@ class WebsocketGui(tk.Tk):
             font=self.section_font,
             padding=(4, 2),
         )
-        style.configure("TLabel", background="#ffffff", foreground="#263238", font=self.default_font)
-        style.configure("Muted.TLabel", background="#ffffff", foreground="#607d8b", font=self.default_font)
-        style.configure("Header.TLabel", background="#f4f6f8", foreground="#102027", font=self.heading_font)
-        style.configure("Status.TLabel", background="#e8f5e9", foreground="#1b5e20", padding=(12, 6), font=self.section_font)
+        style.configure(
+            "TLabel", background="#ffffff", foreground="#263238", font=self.default_font
+        )
+        style.configure(
+            "Muted.TLabel",
+            background="#ffffff",
+            foreground="#607d8b",
+            font=self.default_font,
+        )
+        style.configure(
+            "Header.TLabel",
+            background="#f4f6f8",
+            foreground="#102027",
+            font=self.heading_font,
+        )
+        style.configure(
+            "Status.TLabel",
+            background="#e8f5e9",
+            foreground="#1b5e20",
+            padding=(12, 6),
+            font=self.section_font,
+        )
         style.configure("TEntry", padding=(7, 5), font=self.default_font)
         style.configure("TButton", padding=(12, 7), font=self.button_font)
         style.configure("Primary.TButton", padding=(14, 8), font=self.button_font)
@@ -173,30 +202,59 @@ class WebsocketGui(tk.Tk):
 
         header = ttk.Frame(root, style="App.TFrame")
         header.pack(fill=tk.X, pady=(0, 10))
-        ttk.Label(header, text="Gym Vision WebSocket Test Server", style="Header.TLabel").pack(side=tk.LEFT)
-        ttk.Label(header, textvariable=self.status_var, style="Status.TLabel").pack(side=tk.RIGHT)
+        ttk.Label(
+            header, text="Gym Vision WebSocket Test Server", style="Header.TLabel"
+        ).pack(side=tk.LEFT)
+        ttk.Label(header, textvariable=self.status_var, style="Status.TLabel").pack(
+            side=tk.RIGHT
+        )
 
-        server_frame = ttk.LabelFrame(root, text="Server", padding=12, style="Panel.TLabelframe")
+        server_frame = ttk.LabelFrame(
+            root, text="Server", padding=12, style="Panel.TLabelframe"
+        )
         server_frame.pack(fill=tk.X)
 
         ttk.Label(server_frame, text="Host").grid(row=0, column=0, sticky=tk.W)
-        ttk.Entry(server_frame, textvariable=self.host_var, width=20).grid(row=0, column=1, padx=(8, 18), ipady=2)
+        ttk.Entry(server_frame, textvariable=self.host_var, width=20).grid(
+            row=0, column=1, padx=(8, 18), ipady=2
+        )
         ttk.Label(server_frame, text="Port").grid(row=0, column=2, sticky=tk.W)
-        ttk.Entry(server_frame, textvariable=self.port_var, width=9).grid(row=0, column=3, padx=(8, 18), ipady=2)
-        ttk.Button(server_frame, text="Start Server", command=self._start_server, style="Primary.TButton").grid(row=0, column=4, padx=(0, 8))
-        ttk.Button(server_frame, text="Stop", command=self._stop_server).grid(row=0, column=5, padx=(0, 8))
-        ttk.Label(server_frame, text="Start this before running main.py.", style="Muted.TLabel").grid(row=0, column=6, padx=(12, 0), sticky=tk.W)
+        ttk.Entry(server_frame, textvariable=self.port_var, width=9).grid(
+            row=0, column=3, padx=(8, 18), ipady=2
+        )
+        ttk.Button(
+            server_frame,
+            text="Start Server",
+            command=self._start_server,
+            style="Primary.TButton",
+        ).grid(row=0, column=4, padx=(0, 8))
+        ttk.Button(server_frame, text="Stop", command=self._stop_server).grid(
+            row=0, column=5, padx=(0, 8)
+        )
+        ttk.Label(
+            server_frame,
+            text="Start this before running main.py.",
+            style="Muted.TLabel",
+        ).grid(row=0, column=6, padx=(12, 0), sticky=tk.W)
         server_frame.columnconfigure(6, weight=1)
 
-        command_frame = ttk.LabelFrame(root, text="Command Builder", padding=12, style="Panel.TLabelframe")
+        command_frame = ttk.LabelFrame(
+            root, text="Command Builder", padding=12, style="Panel.TLabelframe"
+        )
         command_frame.pack(fill=tk.X, pady=(12, 0))
 
         ttk.Label(command_frame, text="memberID").grid(row=0, column=0, sticky=tk.W)
-        ttk.Entry(command_frame, textvariable=self.member_id_var, width=14).grid(row=0, column=1, padx=(8, 18), sticky=tk.W, ipady=2)
+        ttk.Entry(command_frame, textvariable=self.member_id_var, width=14).grid(
+            row=0, column=1, padx=(8, 18), sticky=tk.W, ipady=2
+        )
         ttk.Label(command_frame, text="camIP").grid(row=0, column=2, sticky=tk.W)
-        ttk.Entry(command_frame, textvariable=self.cam_ip_var, width=22).grid(row=0, column=3, padx=(8, 18), sticky=tk.W, ipady=2)
+        ttk.Entry(command_frame, textvariable=self.cam_ip_var, width=22).grid(
+            row=0, column=3, padx=(8, 18), sticky=tk.W, ipady=2
+        )
         ttk.Label(command_frame, text="Address").grid(row=0, column=4, sticky=tk.W)
-        ttk.Entry(command_frame, textvariable=self.address_var, width=36).grid(row=0, column=5, padx=(8, 0), sticky=tk.EW, ipady=2)
+        ttk.Entry(command_frame, textvariable=self.address_var, width=36).grid(
+            row=0, column=5, padx=(8, 0), sticky=tk.EW, ipady=2
+        )
         command_frame.columnconfigure(5, weight=1)
 
         button_groups = ttk.Frame(command_frame)
@@ -221,6 +279,8 @@ class WebsocketGui(tk.Tk):
             [
                 ("Check All", self._send_check_all),
                 ("Check IP", self._send_check_ip),
+                ("Show Cam", self._send_cam_show_true),
+                ("Hide Cam", self._send_cam_show_false),
             ],
         )
         self._add_button_group(
@@ -243,7 +303,9 @@ class WebsocketGui(tk.Tk):
             ],
         )
 
-        raw_frame = ttk.LabelFrame(root, text="Raw JSON", padding=12, style="Panel.TLabelframe")
+        raw_frame = ttk.LabelFrame(
+            root, text="Raw JSON", padding=12, style="Panel.TLabelframe"
+        )
         raw_frame.pack(fill=tk.X, pady=(12, 0))
         raw_frame.columnconfigure(0, weight=1)
         self.raw_text = tk.Text(
@@ -260,7 +322,12 @@ class WebsocketGui(tk.Tk):
         )
         self.raw_text.grid(row=0, column=0, sticky=tk.EW)
         self.raw_text.insert("1.0", '{"Type":"connection"}')
-        ttk.Button(raw_frame, text="Send Raw JSON", command=self._send_raw, style="Primary.TButton").grid(row=0, column=1, padx=(10, 0), sticky=tk.NS)
+        ttk.Button(
+            raw_frame,
+            text="Send Raw JSON",
+            command=self._send_raw,
+            style="Primary.TButton",
+        ).grid(row=0, column=1, padx=(10, 0), sticky=tk.NS)
 
         display_frame = ttk.Frame(root, style="App.TFrame")
         display_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
@@ -268,9 +335,19 @@ class WebsocketGui(tk.Tk):
         display_frame.columnconfigure(1, weight=1)
         display_frame.rowconfigure(0, weight=1)
 
-        sent_frame = ttk.LabelFrame(display_frame, text="Sent To Vision Service", padding=8, style="Panel.TLabelframe")
+        sent_frame = ttk.LabelFrame(
+            display_frame,
+            text="Sent To Vision Service",
+            padding=8,
+            style="Panel.TLabelframe",
+        )
         sent_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
-        received_frame = ttk.LabelFrame(display_frame, text="Received From Vision Service", padding=8, style="Panel.TLabelframe")
+        received_frame = ttk.LabelFrame(
+            display_frame,
+            text="Received From Vision Service",
+            padding=8,
+            style="Panel.TLabelframe",
+        )
         received_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(6, 0))
 
         self.sent_display = scrolledtext.ScrolledText(
@@ -300,16 +377,28 @@ class WebsocketGui(tk.Tk):
 
         bottom = ttk.Frame(root, style="App.TFrame")
         bottom.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(bottom, text="Clear Sent", command=lambda: self._clear(self.sent_display)).pack(side=tk.LEFT)
-        ttk.Button(bottom, text="Clear Received", command=lambda: self._clear(self.received_display)).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(
+            bottom, text="Clear Sent", command=lambda: self._clear(self.sent_display)
+        ).pack(side=tk.LEFT)
+        ttk.Button(
+            bottom,
+            text="Clear Received",
+            command=lambda: self._clear(self.received_display),
+        ).pack(side=tk.LEFT, padx=(6, 0))
 
-    def _add_button_group(self, parent: ttk.Frame, column: int, title: str, buttons: list[tuple[str, Any]]) -> None:
+    def _add_button_group(
+        self, parent: ttk.Frame, column: int, title: str, buttons: list[tuple[str, Any]]
+    ) -> None:
         frame = ttk.LabelFrame(parent, text=title, padding=8, style="Panel.TLabelframe")
-        frame.grid(row=0, column=column, sticky=tk.NSEW, padx=(0 if column == 0 else 8, 0))
+        frame.grid(
+            row=0, column=column, sticky=tk.NSEW, padx=(0 if column == 0 else 8, 0)
+        )
         frame.columnconfigure(0, weight=1)
 
         for row, (label, command) in enumerate(buttons):
-            ttk.Button(frame, text=label, command=command).grid(row=row, column=0, sticky=tk.EW, pady=(0, 6))
+            ttk.Button(frame, text=label, command=command).grid(
+                row=row, column=0, sticky=tk.EW, pady=(0, 6)
+            )
 
     def _start_server(self) -> None:
         if self.server is not None and self.server.is_running:
@@ -321,7 +410,9 @@ class WebsocketGui(tk.Tk):
             messagebox.showerror("Invalid port", "Port must be an integer.")
             return
 
-        self.server = WebsocketTestServer(self.host_var.get().strip(), port, self.gui_queue)
+        self.server = WebsocketTestServer(
+            self.host_var.get().strip(), port, self.gui_queue
+        )
         self.server.start()
 
     def _stop_server(self) -> None:
@@ -340,6 +431,20 @@ class WebsocketGui(tk.Tk):
     def _send_check_ip(self) -> None:
         cam_ip = self.cam_ip_var.get().strip()
         self._send({"Type": "checkCam", **({"camIP": cam_ip} if cam_ip else {})})
+
+    def _send_cam_show_true(self) -> None:
+        cam_ip = self.cam_ip_var.get().strip()
+        if not cam_ip:
+            messagebox.showerror("Missing camIP", "camIP is required for camShow.")
+            return
+        self._send({"Type": "camShow", "camIP": cam_ip, "status": True})
+
+    def _send_cam_show_false(self) -> None:
+        cam_ip = self.cam_ip_var.get().strip()
+        if not cam_ip:
+            messagebox.showerror("Missing camIP", "camIP is required for camShow.")
+            return
+        self._send({"Type": "camShow", "camIP": cam_ip, "status": False})
 
     def _send_reg(self) -> None:
         try:
@@ -376,7 +481,9 @@ class WebsocketGui(tk.Tk):
             messagebox.showerror("Invalid JSON", str(e))
             return
         if not isinstance(payload, dict):
-            messagebox.showerror("Invalid JSON", "Top-level JSON value must be an object.")
+            messagebox.showerror(
+                "Invalid JSON", "Top-level JSON value must be an object."
+            )
             return
         self._send(payload)
 

@@ -139,6 +139,7 @@ Supported incoming command types:
 - `countDB`
 - `delAll`
 - `checkCam`
+- `camShow`
 - `getDB`
 - `restoreDB`
 
@@ -154,6 +155,7 @@ Example commands:
 ```json
 {"Type":"connection"}
 {"Type":"checkCam","camIP":"192.168.1.64"}
+{"Type":"camShow","camIP":"192.168.1.64","status":true}
 {"Type":"reg","memberID":1008,"camIP":"192.168.1.64"}
 {"Type":"countDB"}
 ```
@@ -162,7 +164,8 @@ Example responses and events:
 
 ```json
 {"Type":"connection","status":true}
-{"Type":"checkCam","IP":"192.168.1.64","camID":0,"status":true}
+{"Type":"checkCam","IP":"192.168.1.64","cameraAddress":"192.168.1.64","camID":0,"status":true}
+{"Type":"camShow","IP":"192.168.1.64","cameraAddress":"192.168.1.64","camID":0,"status":true}
 {"Type":"reg","memberID":1008,"status":true}
 {"Type":"face","memberID":1008,"camID":0,"confidence":0.91,"status":true}
 ```
@@ -189,7 +192,7 @@ Or use the packaged release asset:
 Features:
 
 - starts a local WebSocket server on `ws://127.0.0.1:8888`
-- buttons for common commands like `connection`, `checkCam`, `reg`, `del`, `countDB`, and backup or restore commands
+- buttons for common commands like `connection`, `checkCam`, `camShow`, `reg`, `del`, `countDB`, and backup or restore commands
 - raw JSON send box
 - separate displays for messages sent to FaceGate and messages received from FaceGate
 
