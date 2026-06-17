@@ -66,7 +66,9 @@ def calculate_target_fps(camera_count: int) -> float:
     return perf.max_fps_more_cameras
 
 
-def _resize_for_recognition(frame: cv2.typing.MatLike, max_width: int) -> cv2.typing.MatLike:
+def _resize_for_recognition(
+    frame: cv2.typing.MatLike, max_width: int
+) -> cv2.typing.MatLike:
     if max_width <= 0:
         return frame
 
@@ -121,7 +123,9 @@ def _queue_put_safe(out_queue: mp.Queue, payload: QueueMsgSchema):
         logger.error(f"failed to publish queue message: {e}")
 
 
-def _camera_status_payload(cam_id: int, camera_uri: str, status: bool, message: str | None = None) -> QueueMsgSchema:
+def _camera_status_payload(
+    cam_id: int, camera_uri: str, status: bool, message: str | None = None
+) -> QueueMsgSchema:
     return QueueMsgSchema(
         uuid=uuid4(),
         msg_type="CAMERA_STATUS",
@@ -205,7 +209,9 @@ def recognizer_loop(
         )
         if not should_publish:
             return
-        _queue_put_safe(out_queue, _camera_status_payload(cam_id, camera_uri, status, message))
+        _queue_put_safe(
+            out_queue, _camera_status_payload(cam_id, camera_uri, status, message)
+        )
         last_camera_status = status
         last_camera_status_sent_at = now
 
@@ -245,11 +251,16 @@ def recognizer_loop(
             logger.error(f"failed to process recognizer command cam_id={cam_id}: {e}")
 
         if registering_face_id is not None and registering_started_at is not None:
-            if time.monotonic() - registering_started_at > recognition_conf.enrollment_timeout_sec:
+            if (
+                time.monotonic() - registering_started_at
+                > recognition_conf.enrollment_timeout_sec
+            ):
                 try:
                     db.delete_pending_face(registering_face_id)
                 except Exception as e:
-                    logger.warning(f"failed to delete timed-out pending face_id={registering_face_id}: {e}")
+                    logger.warning(
+                        f"failed to delete timed-out pending face_id={registering_face_id}: {e}"
+                    )
                 _queue_put_safe(
                     out_queue,
                     QueueMsgSchema(
@@ -269,7 +280,11 @@ def recognizer_loop(
                 registering_member_id = None
                 registering_started_at = None
 
-        target_fps = enrollment_target_fps if registering_face_id is not None else base_target_fps
+        target_fps = (
+            enrollment_target_fps
+            if registering_face_id is not None
+            else base_target_fps
+        )
 
         now = time.monotonic()
         if cap is None or not cap.isOpened():
@@ -298,7 +313,9 @@ def recognizer_loop(
 
         frame = read_frame(cap, skip_n_frames=config.vision_setting.skip_n_frames)
         if frame is None:
-            publish_camera_status(False, "failed to read frame; reconnecting", force=True)
+            publish_camera_status(
+                False, "failed to read frame; reconnecting", force=True
+            )
             _release_capture(cap)
             cap = None
             same_face = False
@@ -365,7 +382,9 @@ def recognizer_loop(
             continue
 
         if len(faces) > 1:
-            logger.warning(f"detected {len(faces)} faces, selecting face with biggest area")
+            logger.warning(
+                f"detected {len(faces)} faces, selecting face with biggest area"
+            )
         face = max(faces, key=lambda f: f[2] * f[3])
 
         if open_camera_window:
@@ -391,7 +410,10 @@ def recognizer_loop(
                     recognition_conf.duplicate_thresh,
                     recognition_conf.similarity_func,
                 )
-                if similar_member_id is not None and similar_member_id != registering_member_id:
+                if (
+                    similar_member_id is not None
+                    and similar_member_id != registering_member_id
+                ):
                     db.delete_pending_face(registering_face_id)
                     payload = QueueMsgSchema(
                         uuid=uuid4(),
@@ -428,7 +450,9 @@ def recognizer_loop(
                 try:
                     db.delete_pending_face(registering_face_id)
                 except Exception:
-                    logger.warning(f"failed to delete pending face_id={registering_face_id}")
+                    logger.warning(
+                        f"failed to delete pending face_id={registering_face_id}"
+                    )
                 _queue_put_safe(
                     out_queue,
                     QueueMsgSchema(
@@ -453,7 +477,9 @@ def recognizer_loop(
             try:
                 same_face = recognizer.match(face_features, prev_face_features) > 0.95
             except Exception as e:
-                logger.warning(f"same-face comparison failed, treating as new face: {e}")
+                logger.warning(
+                    f"same-face comparison failed, treating as new face: {e}"
+                )
                 same_face = False
 
         if not same_face:
@@ -475,8 +501,13 @@ def recognizer_loop(
                     last_unknown_face_log_at = now
             else:
                 now = time.monotonic()
-                if now - last_recognition_sent_at >= recognition_conf.after_recognition_delay:
-                    logger.info(f"*** new face recognized: member_id={member_id}, confidence={conf:.4f}")
+                if (
+                    now - last_recognition_sent_at
+                    >= recognition_conf.after_recognition_delay
+                ):
+                    logger.info(
+                        f"*** new face recognized: member_id={member_id}, confidence={conf:.4f}"
+                    )
                     _queue_put_safe(
                         out_queue,
                         QueueMsgSchema(
@@ -494,8 +525,20 @@ def recognizer_loop(
         if open_camera_window:
             try:
                 x, y, bw, bh = face[:4].astype(int)
-                label = f"id: {member_id}  conf: {conf:.2f}" if member_id is not None else "Unknown"
-                cv2.putText(frame, label, (x, y + bh + 20), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255, 255, 255), 1)
+                label = (
+                    f"id: {member_id}  conf: {conf:.2f}"
+                    if member_id is not None
+                    else "Unknown"
+                )
+                cv2.putText(
+                    frame,
+                    label,
+                    (x, y + bh + 20),
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    0.7,
+                    (255, 255, 255),
+                    1,
+                )
                 cv2.imshow(CAMERA_WIN_NAME + f"_{cam_id}", frame)
             except Exception as e:
                 logger.warning(f"failed to render overlay: {e}")
@@ -506,10 +549,14 @@ def recognizer_loop(
                 try:
                     member_id_check, _ = db.find_match(face_features, 0.95, "cosine")
                     if member_id_check is None:
-                        new_face_id = db.add_face(face_features, random.randint(10, 1000))
+                        new_face_id = db.add_face(
+                            face_features, random.randint(10, 1000)
+                        )
                         logger.success(f"registered new face with id={new_face_id}")
                     else:
-                        logger.warning(f"face already registered with member_id={member_id_check}, skipping")
+                        logger.warning(
+                            f"face already registered with member_id={member_id_check}, skipping"
+                        )
                 except Exception as e:
                     logger.error(f"face registration failed: {e}")
             elif key == ord("u") and face_features is not None:
@@ -517,7 +564,9 @@ def recognizer_loop(
                     member_id_check, _ = db.find_match(face_features, 0.95, "cosine")
                     if member_id_check is not None:
                         row = db.get_face_by_member_id(member_id_check)
-                        if row is not None and db.update_face(row["id"], face_features, pending_only=False):
+                        if row is not None and db.update_face(
+                            row["id"], face_features, pending_only=False
+                        ):
                             logger.success(f"updated member_id={member_id_check}")
                 except Exception as e:
                     logger.error(f"face update failed: {e}")
@@ -539,7 +588,9 @@ def recognizer_loop(
     cv2.destroyAllWindows()
 
 
-def init_recognizers(open_camera_window: bool = False, begin_processes: bool = True) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
+def init_recognizers(
+    open_camera_window: bool = False, begin_processes: bool = True
+) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
@@ -551,7 +602,16 @@ def init_recognizers(open_camera_window: bool = False, begin_processes: bool = T
         out_queue = ctx.Queue(maxsize=30)
         process = ctx.Process(
             target=recognizer_loop,
-            args=(camera.uri, in_queue, out_queue, lock, interval, open_camera_window, i, config_snapshot),
+            args=(
+                camera.uri,
+                in_queue,
+                out_queue,
+                lock,
+                interval,
+                open_camera_window,
+                i,
+                config_snapshot,
+            ),
             daemon=True,
             name=f"recognizer_{i}",
         )
