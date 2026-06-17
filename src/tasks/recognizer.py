@@ -8,7 +8,7 @@ import multiprocessing as mp
 import queue
 import random
 import time
-from typing import Tuple
+from typing import Any, Tuple
 from uuid import uuid4
 
 import cv2
@@ -134,7 +134,7 @@ def _camera_status_payload(cam_id: int, camera_uri: str, status: bool, message: 
     )
 
 
-def _toggle_camera_preview(cam_id: int, enabled: bool, window_lock: mp.Lock | None = None) -> None:
+def _toggle_camera_preview(cam_id: int, enabled: bool, window_lock: Any | None = None) -> None:
     window_name = CAMERA_WIN_NAME + f"_{cam_id}"
     try:
         if window_lock is not None:
@@ -156,7 +156,7 @@ def recognizer_loop(
     camera_uri: str,
     in_queue: mp.Queue,
     out_queue: mp.Queue,
-    window_lock: mp.Lock | None = None,
+    window_lock: Any | None = None,
     interval: float = 0.001,
     open_camera_window: bool = False,
     cam_id: int = 0,
@@ -601,7 +601,7 @@ def recognizer_loop(
         logger.debug(f"failed to destroy camera window {cam_id}: {e}")
 
 
-def init_recognizers(force_open_camera_window: bool = False, begin_processes: bool = True, window_lock: mp.Lock | None = None) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
+def init_recognizers(force_open_camera_window: bool = False, begin_processes: bool = True, window_lock: Any | None = None) -> dict[int, Tuple[mp.Process, mp.Queue, mp.Queue]]:
     config = ConfigManager.get_config()
     interval = config.vision_setting.interval_sec
     config_snapshot = config.model_dump(mode="python")
@@ -626,7 +626,7 @@ def start_recognizer_process(
     in_queue: mp.Queue,
     out_queue: mp.Queue,
     force_open_camera_window: bool = False,
-    window_lock: mp.Lock | None = None,
+    window_lock: Any | None = None,
 ) -> mp.Process:
     config = ConfigManager.get_config()
     config_snapshot = config.model_dump(mode="python")
