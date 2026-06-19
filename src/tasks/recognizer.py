@@ -16,6 +16,7 @@ import numpy as np
 from loguru import logger
 
 from src.config import AppConfig, ConfigManager
+from src.Logging import initialize_logger
 from src.repository.database.controller import FaceDatabase
 from src.repository.detection._detection_base import DetectorBase
 from src.repository.recognition._recognition_base import RecognizerBase
@@ -204,6 +205,9 @@ def recognizer_loop(
 
     if ConfigManager.get_config(False) is None and config_snapshot is not None:
         ConfigManager.update_config(AppConfig.model_validate(config_snapshot))
+
+    # Configure logging inside the subprocess so config.general.log_level applies here too.
+    initialize_logger(__file__)
 
     config = ConfigManager.get_config()
     crop_dim = (

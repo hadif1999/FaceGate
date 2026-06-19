@@ -164,8 +164,8 @@ Example responses and events:
 
 ```json
 {"Type":"connection","status":true}
-{"Type":"checkCam","IP":"192.168.1.64","cameraAddress":"192.168.1.64","camID":0,"status":true}
-{"Type":"camShow","IP":"192.168.1.64","cameraAddress":"192.168.1.64","camID":0,"status":true}
+{"Type":"checkCam","IP":"192.168.1.64","camID":0,"status":true}
+{"Type":"camShow","IP":"192.168.1.64","camID":0,"status":true}
 {"Type":"reg","memberID":1008,"status":true}
 {"Type":"face","memberID":1008,"camID":0,"confidence":0.91,"status":true}
 ```

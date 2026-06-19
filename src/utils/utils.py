@@ -1,8 +1,8 @@
-
 from typing import Coroutine
-from loguru import logger 
+from loguru import logger
 import asyncio
 import uuid
+
 # from tenacity import AsyncRetrying, stop_after_attempt, retry_if_exception_type
 from typing import Callable, Awaitable, Tuple, Type
 import psutil, os, shlex, sys
@@ -30,11 +30,13 @@ from src.config import Camera
 #     cmd.append(f"--backend={backend}")
 #     logger.debug(f"{cmd = }")
 #     os.execv(python, cmd)
-    
-    
-Function = TypeVar('Function', bound=Union[Callable[..., Any], Callable[..., Awaitable[Any]]])
 
-    
+
+Function = TypeVar(
+    "Function", bound=Union[Callable[..., Any], Callable[..., Awaitable[Any]]]
+)
+
+
 def log_exec_time(func: Function) -> Function:
     @wraps(func)
     async def async_wrapper(*args, **kwargs):
@@ -60,17 +62,19 @@ def log_exec_time(func: Function) -> Function:
         return async_wrapper  # Return async wrapper for async functions
     else:
         return sync_wrapper  # Return sync wrapper for sync functions
-    
 
-def crop_percent(img: np.ndarray, tl_pct: tuple[int, int], br_pct: tuple[int, int]) -> np.ndarray:
+
+def crop_percent(
+    img: np.ndarray, tl_pct: tuple[int, int], br_pct: tuple[int, int]
+) -> np.ndarray:
     """
     Crop image by moving top-left and bottom-right corners inward by percentages.
-    
+
     Args:
         img: Input image (H x W x C).
         tl_pct: (x%, y%) to shift top-left corner right/down.
         br_pct: (x%, y%) to shift bottom-right corner left/up.
-    
+
     Returns:
         Cropped image copy.
     """
@@ -79,26 +83,28 @@ def crop_percent(img: np.ndarray, tl_pct: tuple[int, int], br_pct: tuple[int, in
     y1 = int(h * tl_pct[1] / 100)
     x2 = w - int(w * br_pct[0] / 100)
     y2 = h - int(h * br_pct[1] / 100)
-    
+
     # Clamp to valid range
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)
-    
+
     if x1 >= x2 or y1 >= y2:
         raise ValueError("Empty crop region")
-    
+
     return img[y1:y2, x1:x2].copy()
 
 
-def shift_point_percent(img: np.ndarray, pt: tuple[int, int], shift_pct: tuple[int, int]) -> tuple[int, int]:
+def shift_point_percent(
+    img: np.ndarray, pt: tuple[int, int], shift_pct: tuple[int, int]
+) -> tuple[int, int]:
     """
     Shift a point by adding percentages of image width/height, then clamp to image boundaries.
-    
+
     Args:
         img: Input image (provides dimensions).
         pt: (x, y) original point.
         shift_pct: (dx%, dy%) – positive moves right/down, negative moves left/up.
-    
+
     Returns:
         (new_x, new_y) clamped to valid pixel indices.
     """
@@ -107,7 +113,7 @@ def shift_point_percent(img: np.ndarray, pt: tuple[int, int], shift_pct: tuple[i
     dy = int(h * shift_pct[1] / 100)
     new_x = pt[0] + dx
     new_y = pt[1] + dy
-    
+
     # Clamp to [0, w-1] and [0, h-1]
     new_x = max(0, min(w - 1, new_x))
     new_y = max(0, min(h - 1, new_y))
@@ -133,48 +139,46 @@ def read_frame(cap: cv2.VideoCapture, skip_n_frames: int = 5):
     return None
 
 
-
-def crop_by_corners(img: np.ndarray, tl_pt: tuple[int, int], br_pt: tuple[int, int]) -> np.ndarray:
+def crop_by_corners(
+    img: np.ndarray, tl_pt: tuple[int, int], br_pt: tuple[int, int]
+) -> np.ndarray:
     """
     Crop image using top‑left and bottom‑right corner points.
-    
+
     Args:
         img: Input image (H x W x C).
         tl_pt: (x, y) of the top‑left corner.
         br_pt: (x, y) of the bottom‑right corner.
-    
+
     Returns:
         Cropped image copy (region from tl_pt to br_pt).
     """
     h, w = img.shape[:2]
-    
+
     # Unpack points
     x1, y1 = tl_pt
     x2, y2 = br_pt
-    
+
     # Ensure coordinates are in correct order (x1 <= x2, y1 <= y2)
     x1, x2 = sorted([x1, x2])
     y1, y2 = sorted([y1, y2])
-    
+
     # Clamp to image boundaries
     x1 = max(0, x1)
     y1 = max(0, y1)
     x2 = min(w, x2)
     y2 = min(h, y2)
-    
+
     # Validate non‑empty region
     if x1 >= x2 or y1 >= y2:
         raise ValueError(f"Invalid crop region: {tl_pt} -> {br_pt} yields empty area")
-    
+
     # Crop (slicing: rows y1..y2, columns x1..x2)
     cropped = img[y1:y2, x1:x2].copy()
     return cropped
 
 
-
-
-def find_cam_idx_by_ip(target_ip: str | int | None, cams: list[Camera],
-                       use_role_if_not_found: bool = True) -> None | int:
+def find_cam_idx_by_ip(target_ip: str | int | None, cams: list[Camera]) -> None | int:
     # Match either a literal string URI/IP or a numeric device index.
     if target_ip is not None:
         for i, cam in enumerate(cams):
@@ -190,11 +194,6 @@ def find_cam_idx_by_ip(target_ip: str | int | None, cams: list[Camera],
                         return i
                 elif target_ip in cam_uri:
                     return i
-    if not use_role_if_not_found:
-        return
-    for i, cam in enumerate(cams):
-        if cam.can_register:
-            return i
 
 
 def restart_app():
