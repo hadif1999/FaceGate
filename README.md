@@ -12,13 +12,15 @@ Use the GitHub Releases page for installation packages and latest binaries:
 
 Current release channels:
 
-- `windows-latest`: Windows one-file executable release assets
-- `linux-latest`: Linux binary release assets
+- `windows-latest`: Windows release archive
+- `linux-latest`: Linux release archive
 
 Each release publishes:
 
-- the executable or binary
-- `config.yaml`
+- a single zip archive containing:
+  - the FaceGate service executable or binary
+  - the GUI WebSocket test server executable or binary
+  - `config.yaml`
 
 ## What FaceGate Does
 
@@ -55,10 +57,17 @@ Key runtime behavior:
 
 ### Windows
 
-Download the Windows release assets and keep them together:
+Download and extract the Windows release archive:
+
+```text
+facegate-windows.zip
+```
+
+Extracted contents:
 
 ```text
 gym_vision.exe
+test_ws_server_gui.exe
 config.yaml
 ```
 
@@ -74,10 +83,17 @@ The Windows packaging flow is documented in [WINDOWS_BUILD.md](WINDOWS_BUILD.md)
 
 ### Linux
 
-Download the Linux release assets and keep them together:
+Download and extract the Linux release archive:
+
+```text
+facegate-linux.zip
+```
+
+Extracted contents:
 
 ```text
 gym_vision
+test_ws_server_gui
 config.yaml
 ```
 
@@ -95,8 +111,8 @@ FaceGate is configured through `config.yaml`.
 
 Main config groups:
 
-- `general`: logging behavior
-- `cameras`: camera URIs, per-camera preview windows, and which camera is allowed to handle default registration
+- `general`: logging and preview window behavior
+- `cameras`: camera URIs and which camera is allowed to handle default registration
 - `vision_setting`: database path, models path, crop, detection, recognition, and camera reconnect behavior
 - `websocket_server`: external server URL and keepalive settings
 - `performance`: adaptive FPS and CPU-related controls
@@ -168,6 +184,11 @@ Run:
 uv run python scripts/test_ws_server_gui.py
 ```
 
+Or use the packaged release asset:
+
+- Windows: `test_ws_server_gui.exe`
+- Linux: `test_ws_server_gui`
+
 Features:
 
 - starts a local WebSocket server on `ws://127.0.0.1:8888`
@@ -216,7 +237,7 @@ On every push:
 
 - the corresponding GitHub Actions workflow builds into `dist/`
 - `dist/` is uploaded as a workflow artifact
-- the latest binary and `config.yaml` are published to the GitHub Releases page
+- a single platform zip archive is published to the GitHub Releases page
 
 Release tags used by automation:
 
@@ -239,7 +260,3 @@ Files most users care about:
 - Recognition uses local ONNX models through OpenCV YuNet and SFace.
 - Camera workers are isolated so one camera failure does not stop the whole service.
 - If the WebSocket server is unavailable, FaceGate keeps retrying until it reconnects.
-
-## License and Use
-
-This repository currently does not declare a separate license file. If you plan to distribute or commercialize FaceGate broadly, define the license terms explicitly in the repository.

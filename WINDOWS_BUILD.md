@@ -28,13 +28,16 @@ This runs:
 
 ```powershell
 uv run --with pyinstaller pyinstaller --clean --noconfirm .\gym_vision.spec
+uv run --with pyinstaller pyinstaller --clean --noconfirm .\test_ws_server_gui.spec
 ```
 
 Output:
 
 ```text
 dist\gym_vision.exe
+dist\test_ws_server_gui.exe
 dist\config.yaml
+facegate-windows.zip
 ```
 
 ## Runtime Config
@@ -46,7 +49,14 @@ Keep this layout:
 ```text
 dist\
   gym_vision.exe
+  test_ws_server_gui.exe
   config.yaml
+```
+
+The build script also creates a release-style archive:
+
+```text
+facegate-windows.zip
 ```
 
 Edit `dist\config.yaml` to change cameras, websocket URL, database path, FPS limits, crop settings, and recognition thresholds. You do not need to rebuild the `.exe` after editing the config.
@@ -55,6 +65,12 @@ Run:
 
 ```powershell
 .\dist\gym_vision.exe
+```
+
+Run the GUI test server:
+
+```powershell
+.\dist\test_ws_server_gui.exe
 ```
 
 Or use an explicit config path:
@@ -94,6 +110,7 @@ The `data` directory is generated outside the one-file executable at runtime:
 ```text
 dist\
   gym_vision.exe
+  test_ws_server_gui.exe
   config.yaml
   data\
     face_embeddings.sqlite3
