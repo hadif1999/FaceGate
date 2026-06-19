@@ -50,9 +50,7 @@ class VisionSetting(BaseModel):
 
 class Camera(BaseModel):
     uri: str | int = Field(alias="URI")
-    can_register: bool = False
     open_camera_window: bool = False
-
     model_config = ConfigDict(populate_by_name=True)
 
 

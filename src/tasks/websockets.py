@@ -52,7 +52,10 @@ def _json_response(**payload) -> str:
 def _camera_uri(cam_id: int) -> str | int | None:
     config = ConfigManager.get_config()
     if 0 <= cam_id < len(config.cameras):
-        return config.cameras[cam_id].uri
+        target_uri = config.cameras[cam_id].uri
+        if isinstance(target_uri, int) or len(target_uri) == 1:
+            target_uri = "usb" + str(target_uri)
+        return target_uri
     return None
 
 
@@ -211,7 +214,8 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                         Type="camShow", status=False, message="status is required"
                     )
                 cam_idx = find_cam_idx_by_ip(
-                    msg_val.camIP, config.cameras, use_role_if_not_found=False
+                    msg_val.camIP,
+                    config.cameras,
                 )
                 if cam_idx is None:
                     return _json_response(
@@ -242,9 +246,7 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
 
             case "checkCam":
                 if msg_val.camIP:
-                    cam_idx = find_cam_idx_by_ip(
-                        msg_val.camIP, config.cameras, use_role_if_not_found=False
-                    )
+                    cam_idx = find_cam_idx_by_ip(msg_val.camIP, config.cameras)
                     if cam_idx is None:
                         return _json_response(
                             Type="checkCam",
