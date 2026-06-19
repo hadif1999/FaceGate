@@ -5,10 +5,21 @@ general:
 
 # Camera definitions. Each entry starts one recognizer process.
 cameras:
-  # Camera stream URI. RTSP URLs and local device paths such as /dev/video0 are supported by OpenCV.
+  # Camera stream URI or device index.
+  # Examples:
+  # - URI: "rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101"
+  # - URI: "rtsp://192.168.1.64:554/live/ch00_0"
+  # - URI: "http://192.168.1.64:8080/video"
+  # - URI: "http://192.168.1.64:8080/mjpeg/stream"
+  # - URI: "file:///home/user/videos/sample.mp4"
+  # - URI: "/dev/video0"
   # - URI: 0
-  #   # When true, this camera is used as the default enrollment camera if reg does not include camIP.
-  #   open_camera_window: true
+  # - URI: "0"
+  # OpenCV accepts RTSP, HTTP/MJPEG, file, local-device, and numeric camera index sources.
+  # Example camera entry:
+  # - URI: "rtsp://192.168.1.64:554/Streaming/Channels/101"
+  #   can_register: true
+  #   open_camera_window: false
   # Local webcam/device fallback camera.
   - URI: /dev/video0
     # This camera can recognize faces but is not selected for default enrollment.
@@ -56,7 +67,7 @@ vision_setting:
     # Per-camera cooldown in seconds after sending a recognition event for a known face.
     after_recognition_delay: 3
 
-# Health-check settings reserved for service/system health reporting.
+# Health-check settings reserved for service/system health reporting. (not implemented yet)
 health_check:
   # Enables internal health-check scheduling.
   enabled: true
@@ -70,6 +81,10 @@ health_check:
 # WebSocket client settings. The vision service connects to this server.
 websocket_server:
   # WebSocket server URL used by the gym software or local test server.
+  # Examples:
+  # - "ws://127.0.0.1:8888"
+  # - "ws://192.168.1.10:8765/ws"
+  # - "wss://example.com/socket"
   url: "ws://127.0.0.1:8888"
   # Seconds between websocket keepalive pings while connected.
   ping_interval_sec: 20.0
