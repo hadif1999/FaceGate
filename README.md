@@ -210,7 +210,7 @@ uv sync
 Start the service:
 
 ```bash
-uv run python main.py
+uv run main.py
 ```
 
 Useful runtime notes:
