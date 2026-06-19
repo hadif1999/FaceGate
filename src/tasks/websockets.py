@@ -58,7 +58,7 @@ def _camera_uri(cam_id: int) -> str | int | None:
 
 def _camera_payload(cam_id: int, camera_uri: str | int | None = None) -> dict[str, Any]:
     resolved = camera_uri if camera_uri is not None else _camera_uri(cam_id)
-    return {"IP": resolved, "cameraAddress": resolved}
+    return {"IP": resolved}
 
 
 def _get_runtime_entry(recognizers: RecognizerRuntime, cam_id: int):
@@ -217,7 +217,6 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     return _json_response(
                         Type="camShow",
                         IP=msg_val.camIP,
-                        cameraAddress=msg_val.camIP,
                         status=False,
                         message="camera not found",
                     )
@@ -226,7 +225,6 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     return _json_response(
                         Type="camShow",
                         IP=msg_val.camIP,
-                        cameraAddress=msg_val.camIP,
                         status=False,
                         message="camera queue not found",
                     )
@@ -251,7 +249,6 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                         return _json_response(
                             Type="checkCam",
                             IP=msg_val.camIP,
-                            cameraAddress=msg_val.camIP,
                             status=False,
                             message="camera not found",
                         )
@@ -260,7 +257,6 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                         return _json_response(
                             Type="checkCam",
                             IP=msg_val.camIP,
-                            cameraAddress=msg_val.camIP,
                             status=False,
                             message="camera queue not found",
                         )
