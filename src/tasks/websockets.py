@@ -330,11 +330,13 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     return _json_response(
                         Type="restoreDB", status=False, message="Address is required"
                     )
-                db.restore_database(pathlib.Path(msg_val.address))
+                backup_dir = pathlib.Path(msg_val.address)
+                current_config_path = ConfigManager.get_config_path(False)
+                db.restore_database(backup_dir, current_config_path)
                 return _json_response(
                     Type="restoreDB",
                     status=True,
-                    message="database restored; restarting service",
+                    message="database and config restored; restarting service",
                 )
 
             case "face":
