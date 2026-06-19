@@ -422,11 +422,28 @@ class FaceDatabase:
         return db_backup_path
 
 
-    def restore_database(self, src_db_path: str | Path) -> bool:
-        src = Path(src_db_path)
-        if not src.exists() or not src.is_file():
-            raise FileNotFoundError(f"database backup not found: {src}")
+    def restore_database(self, src_dir: str | Path, current_config_path: str | Path) -> bool:
+        src = Path(src_dir)
+        if not src.exists() or not src.is_dir():
+            raise FileNotFoundError(f"backup folder not found: {src}")
+
+        src_db = src / self.db_path.name
+        if not src_db.exists() or not src_db.is_file():
+            raise FileNotFoundError(f"database backup not found in folder: {src_db}")
+
+        src_config = src / "config.yaml"
+        if not src_config.exists() or not src_config.is_file():
+            raise FileNotFoundError(f"config.yaml not found in backup folder: {src_config}")
+
+        current_config_path = Path(current_config_path)
+        if not current_config_path.exists() or not current_config_path.is_file():
+            raise FileNotFoundError(f"current config path not found: {current_config_path}")
+
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, self.db_path)
+        current_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        shutil.copy2(src_db, self.db_path)
+        shutil.copy2(src_config, current_config_path)
+
         self._initialize_database()
         return True
