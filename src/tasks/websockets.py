@@ -49,19 +49,29 @@ def _json_response(**payload) -> str:
     return json.dumps(_response(**payload), default=str)
 
 
+def _normalize_camera_ip(value: str | int | None) -> str | int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return f"usb{value}" if len(str(value)) == 1 else value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if len(stripped) == 1 and stripped.isdigit():
+            return f"usb{stripped}"
+        return stripped
+    return value
+
+
 def _camera_uri(cam_id: int) -> str | int | None:
     config = ConfigManager.get_config()
     if 0 <= cam_id < len(config.cameras):
-        target_uri = config.cameras[cam_id].uri
-        if isinstance(target_uri, int) or len(target_uri) == 1:
-            target_uri = "usb" + str(target_uri)
-        return target_uri
+        return _normalize_camera_ip(config.cameras[cam_id].uri)
     return None
 
 
 def _camera_payload(cam_id: int, camera_uri: str | int | None = None) -> dict[str, Any]:
     resolved = camera_uri if camera_uri is not None else _camera_uri(cam_id)
-    return {"IP": resolved}
+    return {"IP": _normalize_camera_ip(resolved)}
 
 
 def _get_runtime_entry(recognizers: RecognizerRuntime, cam_id: int):
@@ -220,7 +230,7 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                 if cam_idx is None:
                     return _json_response(
                         Type="camShow",
-                        IP=msg_val.camIP,
+                        IP=_normalize_camera_ip(msg_val.camIP),
                         status=False,
                         message="camera not found",
                     )
@@ -228,7 +238,7 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                 if in_queue is None:
                     return _json_response(
                         Type="camShow",
-                        IP=msg_val.camIP,
+                        IP=_normalize_camera_ip(msg_val.camIP),
                         status=False,
                         message="camera queue not found",
                     )
@@ -250,7 +260,7 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     if cam_idx is None:
                         return _json_response(
                             Type="checkCam",
-                            IP=msg_val.camIP,
+                            IP=_normalize_camera_ip(msg_val.camIP),
                             status=False,
                             message="camera not found",
                         )
@@ -258,7 +268,7 @@ def handle_msg(msg: dict | str, recognizers: RecognizerRuntime) -> None | str:
                     if in_queue is None:
                         return _json_response(
                             Type="checkCam",
-                            IP=msg_val.camIP,
+                            IP=_normalize_camera_ip(msg_val.camIP),
                             status=False,
                             message="camera queue not found",
                         )

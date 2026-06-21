@@ -21,7 +21,7 @@ cameras:
   #   can_register: true
   #   open_camera_window: false
   # Local webcam/device fallback camera.
-  - URI: /dev/video0
+  - URI: 0
     # This camera can recognize faces but is not selected for default enrollment.
     # When true, OpenCV opens a preview window for this camera only. Keep false on headless/production systems.
     open_camera_window: true
